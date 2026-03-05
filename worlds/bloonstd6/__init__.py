@@ -13,6 +13,7 @@ from .Items import (
     BTD6FillerItem,
     BTD6HeroUnlock,
     BTD6KnowledgeUnlock,
+    BTD6ProgressiveKnowledge,
     BTD6MapUnlock,
     BTD6MedalItem,
     BTD6MonkeyUnlock,
@@ -107,6 +108,9 @@ class BTD6World(World):
         if name == self.bloonsItemData.MONEY_NAME:
             return BTD6FillerItem(name, self.bloonsItemData.MONEY_CODE, self.player)
 
+        if name == self.bloonsItemData.PROGRESSIVE_KNOWLEDGE_NAME:
+            return BTD6ProgressiveKnowledge(self.bloonsItemData.PROGRESSIVE_KNOWLEDGE_CODE, self.player)
+
         map = self.bloonsItemData.items.get(f"{name}-MUnlock")
         monkey = self.bloonsItemData.items.get(f"{name}-TUnlock")
         knowledge = self.bloonsItemData.items.get(f"{name}-KUnlock")
@@ -143,9 +147,16 @@ class BTD6World(World):
             self.multiworld.itempool.append(self.create_item(hero))
             item_count += 1
 
-        for knowledge in Shared.knowledgeIDs:
-            self.multiworld.itempool.append(self.create_item(knowledge))
-            item_count += 1
+        if self.options.progressive_knowledge.value:
+            # Progressive mode: 7 items unlock knowledge layer by layer
+            for _ in range(7):
+                self.multiworld.itempool.append(self.create_item(BloonsItems.PROGRESSIVE_KNOWLEDGE_NAME))
+                item_count += 1
+        else:
+            # Original mode: one item per knowledge node
+            for knowledge in Shared.knowledgeIDs:
+                self.multiworld.itempool.append(self.create_item(knowledge))
+                item_count += 1
 
         filler_items = (
             len(self.multiworld.get_unfilled_locations(self.player)) - item_count
@@ -157,17 +168,14 @@ class BTD6World(World):
         menu_region = Region("Menu", self.player, self.multiworld)
         map_select_region = Region("Map Select", self.player, self.multiworld)
         xp_region = Region("XP Progression", self.player, self.multiworld)
-        knowledge_region = Region("Knowledge Tree", self.player, self.multiworld)
         hero_select_region = Region("Hero Select", self.player, self.multiworld)
         self.multiworld.regions += [
             menu_region,
             map_select_region,
             xp_region,
-            knowledge_region,
         ]
         menu_region.connect(map_select_region)
         menu_region.connect(xp_region)
-        menu_region.connect(knowledge_region)
 
         all_maps_copy = self.starting_maps.copy()
         incl_maps_copy = self.included_maps.copy()
@@ -313,276 +321,259 @@ class BTD6World(World):
             xp_region.add_locations({name: self.bloonsMapData.locations[name]})
         # endregion
 
-        # Knowledge Specific Regions and Locations
-        # region Create K Categories
-        primary_region = Region("Primary Knowledge", self.player, self.multiworld)
-        military_region = Region("Military Knowledge", self.player, self.multiworld)
-        magic_region = Region("Magic Knowledge", self.player, self.multiworld)
-        support_region = Region("Support Knowledge", self.player, self.multiworld)
-        heroes_region = Region("Hero Knowledge", self.player, self.multiworld)
-        powers_region = Region("Powers Region", self.player, self.multiworld)
-
-        self.multiworld.regions += [
-            primary_region,
-            military_region,
-            magic_region,
-            support_region,
-            heroes_region,
-            powers_region,
-        ]
-
-        knowledge_region.connect(primary_region)
-        knowledge_region.connect(military_region)
-        knowledge_region.connect(magic_region)
-        knowledge_region.connect(support_region)
-        knowledge_region.connect(heroes_region)
-        knowledge_region.connect(powers_region)
+        # region Pop Tier Locations
+        if self.options.pop_tier_checks.value:
+            pop_tier_region = Region("Pop Tiers", self.player, self.multiworld)
+            self.multiworld.regions.append(pop_tier_region)
+            menu_region.connect(pop_tier_region)
+            for monkey in self.bloonsItemData.monkeyIDs:
+                pop_tier_region.add_locations({
+                    f"{monkey}-Tier3": self.bloonsMapData.locations[f"{monkey}-Tier3"],
+                    f"{monkey}-Tier4": self.bloonsMapData.locations[f"{monkey}-Tier4"],
+                    f"{monkey}-Tier5": self.bloonsMapData.locations[f"{monkey}-Tier5"],
+                })
+                # Require the monkey to be unlocked before its tier locations are
+                # accessible — this prevents the solver from placing that monkey's
+                # own TUnlock item behind its own pop tier check (circular dependency).
+                for tier in ("Tier3", "Tier4", "Tier5"):
+                    add_rule(
+                        self.multiworld.get_location(f"{monkey}-{tier}", self.player),
+                        rule=lambda state, m=monkey: state.has(f"{m}-TUnlock", self.player),
+                    )
         # endregion
 
-        # region Create K Locations for Logic
-        knowledge_regions: List[Region] = []
-        for name in Shared.knowledgeIDs:
-            region = Region(name, self.player, self.multiworld)
-            region.add_locations(
-                {
-                    name + "-Tree": self.bloonsMapData.locations[f"{name}-Tree"],
-                },
-                BTD6Knowledge,
-            )
-            knowledge_regions.append(region)
-        # endregion
+        # region Knowledge Locations
+        if not self.options.progressive_knowledge.value:
+            # Original mode: individual knowledge nodes as locations gated by their own items
+            knowledge_region = Region("Knowledge Tree", self.player, self.multiworld)
+            self.multiworld.regions.append(knowledge_region)
+            menu_region.connect(knowledge_region)
 
-        self.multiworld.regions += knowledge_regions
+            primary_region = Region("Primary Knowledge", self.player, self.multiworld)
+            military_region = Region("Military Knowledge", self.player, self.multiworld)
+            magic_region = Region("Magic Knowledge", self.player, self.multiworld)
+            support_region = Region("Support Knowledge", self.player, self.multiworld)
+            heroes_region = Region("Hero Knowledge", self.player, self.multiworld)
+            powers_region = Region("Powers Region", self.player, self.multiworld)
 
-        def knowledge_connection(parent_region: Region | int, knowledge_id: int):
-            if type(parent_region) is int:
-                region = knowledge_regions[parent_region]
+            self.multiworld.regions += [
+                primary_region, military_region, magic_region,
+                support_region, heroes_region, powers_region,
+            ]
+
+            knowledge_region.connect(primary_region)
+            knowledge_region.connect(military_region)
+            knowledge_region.connect(magic_region)
+            knowledge_region.connect(support_region)
+            knowledge_region.connect(heroes_region)
+            knowledge_region.connect(powers_region)
+
+            knowledge_regions: List[Region] = []
+            for kname in Shared.knowledgeIDs:
+                region = Region(kname, self.player, self.multiworld)
+                region.add_locations(
+                    {kname + "-Tree": self.bloonsMapData.locations[f"{kname}-Tree"]},
+                    BTD6Knowledge,
+                )
+                knowledge_regions.append(region)
+
+            self.multiworld.regions += knowledge_regions
+
+            def knowledge_connection(parent_region: Region | int, knowledge_id: int):
+                if type(parent_region) is int:
+                    region = knowledge_regions[parent_region]
+                else:
+                    region = parent_region
                 region.connect(
                     knowledge_regions[knowledge_id],
-                    rule=lambda state, place=Shared.knowledgeIDs[
-                        knowledge_id
-                    ] + "-KUnlock": state.has(place, self.player),
-                )
-            else:
-                region: Region = parent_region
-                region.connect(
-                    knowledge_regions[knowledge_id],
-                    rule=lambda state, place=Shared.knowledgeIDs[
-                        knowledge_id
-                    ] + "-KUnlock": state.has(place, self.player),
+                    rule=lambda state, place=Shared.knowledgeIDs[knowledge_id] + "-KUnlock": state.has(place, self.player),
                 )
 
-        # region K. Tree Logic
-        # region Primary
-        # Primary Layer 1
-        knowledge_connection(primary_region, 0)  # Fast Tack Attacks
-        knowledge_connection(primary_region, 1)  # Increased Lifespan
-        knowledge_connection(primary_region, 2)  # Extra Dart Pops
-        # Primary Layer 2
-        knowledge_connection(0, 4)  # Hard Tacks
-        knowledge_connection(4, 3)  # Poppy Blades
-        knowledge_connection(0, 5)
-        knowledge_connection(1, 6)
-        knowledge_connection(1, 7)
-        knowledge_connection(2, 8)
-        # Primary Layer 3
-        knowledge_connection(3, 9)
-        knowledge_connection(4, 10)
-        knowledge_connection(5, 11)
-        knowledge_connection(6, 12)
-        knowledge_connection(7, 13)
-        knowledge_connection(13, 16)
-        knowledge_connection(8, 14)
-        knowledge_connection(8, 15)
-        # Primary Layer 4
-        knowledge_connection(10, 17)
-        knowledge_connection(11, 18)
-        knowledge_connection(13, 19)
-        knowledge_connection(14, 20)
-        # region Mega Mauler
-        knowledge_connection(18, 21)
-        knowledge_connection(19, 21)
-        # endregion
-        # Primary Layer 5
-        knowledge_connection(17, 22)
-        knowledge_connection(17, 23)
-        knowledge_connection(18, 24)
-        knowledge_connection(12, 25)
-        knowledge_connection(19, 26)
-        knowledge_connection(26, 28)
-        knowledge_connection(20, 27)
-        # Primary Layer 6
-        knowledge_connection(24, 29)
-        knowledge_connection(27, 30)
-        # region More Cash
-        knowledge_connection(29, 31)
-        knowledge_connection(30, 31)
-        # endregion
-        # endregion
-        # region Military
-        # Military Layer 1
-        knowledge_connection(military_region, 32)
-        knowledge_connection(military_region, 33)
-        knowledge_connection(military_region, 34)
-        knowledge_connection(military_region, 35)
-        # Military Layer 2
-        knowledge_connection(32, 36)
-        knowledge_connection(33, 37)
-        knowledge_connection(34, 38)
-        # Military Layer 3
-        knowledge_connection(military_region, 39)
-        knowledge_connection(32, 40)
-        knowledge_connection(36, 41)
-        knowledge_connection(37, 42)
-        knowledge_connection(33, 43)
-        knowledge_connection(38, 44)
-        knowledge_connection(35, 45)
-        # Military Layer 4
-        knowledge_connection(40, 46)
-        knowledge_connection(41, 47)
-        knowledge_connection(42, 48)
-        knowledge_connection(39, 49)
-        knowledge_connection(45, 50)
-        # Military Layer 5
-        # region Flanking Maneuvers
-        knowledge_connection(46, 56)
-        knowledge_connection(47, 56)
-        # endregion
-        knowledge_connection(48, 52)
-        knowledge_connection(52, 55)
-        knowledge_connection(43, 51)
-        knowledge_connection(49, 54)
-        knowledge_connection(44, 53)
-        # Military Layer 6
-        knowledge_connection(56, 57)
-        knowledge_connection(47, 58)
-        knowledge_connection(51, 59)
-        # region Advanced Logistics
-        knowledge_connection(59, 60)
-        knowledge_connection(52, 60)
-        # endregion
-        # Military Layer 7
-        # region Big Bloon Sabotage
-        knowledge_connection(57, 61)
-        knowledge_connection(53, 61)
-        # endregion
-        # endregion
-        # region Magic
-        # Magic Layer 1
-        knowledge_connection(magic_region, 62)
-        knowledge_connection(magic_region, 64)
-        knowledge_connection(magic_region, 63)
-        # Magic Layer 2
-        knowledge_connection(62, 65)
-        knowledge_connection(62, 66)
-        knowledge_connection(64, 67)
-        knowledge_connection(63, 68)
-        knowledge_connection(68, 69)
-        # Magic Layer 3
-        knowledge_connection(65, 70)
-        knowledge_connection(66, 71)
-        knowledge_connection(67, 72)
-        knowledge_connection(68, 73)
-        # region Flame Jet
-        knowledge_connection(67, 78)
-        knowledge_connection(63, 78)
-        # endregion
-        # Magic Layer 4
-        knowledge_connection(71, 74)
-        knowledge_connection(72, 77)
-        knowledge_connection(73, 76)
-        knowledge_connection(78, 75)
-        # Magic Layer 5
-        knowledge_connection(77, 81)
-        knowledge_connection(74, 80)
-        knowledge_connection(70, 79)
-        # Magic Layer 6
-        # region Tiny Tornadoes
-        knowledge_connection(79, 83)
-        knowledge_connection(81, 83)
-        # endregion
-        knowledge_connection(75, 82)
-        # endregion
-        # region Support
-        # Support Layer 1
-        knowledge_connection(support_region, 84)
-        knowledge_connection(support_region, 85)
-        # Support Layer 2
-        knowledge_connection(84, 86)
-        knowledge_connection(84, 87)
-        knowledge_connection(85, 88)
-        # Support Layer 3
-        knowledge_connection(86, 90)
-        knowledge_connection(87, 91)
-        knowledge_connection(85, 92)
-        knowledge_connection(support_region, 89)
-        # Support Layer 4
-        knowledge_connection(90, 94)
-        knowledge_connection(91, 95)
-        knowledge_connection(92, 97)
-        knowledge_connection(88, 93)
-        knowledge_connection(89, 96)
-        # Support Layer 5
-        knowledge_connection(94, 98)
-        knowledge_connection(95, 103)
-        knowledge_connection(97, 102)
-        knowledge_connection(93, 99)
-        knowledge_connection(96, 100)
-        knowledge_connection(96, 101)
-        # Support Layer 6
-        knowledge_connection(98, 104)
-        knowledge_connection(100, 105)
-        # endregion
-        # region Heroes
-        # Heroes Layer 1
-        knowledge_connection(heroes_region, 106)
-        knowledge_connection(heroes_region, 107)
-        knowledge_connection(heroes_region, 108)
-        # Heroes Layer 2
-        knowledge_connection(106, 109)
-        knowledge_connection(107, 110)
-        # Heroes Layer 3
-        knowledge_connection(109, 111)
-        knowledge_connection(110, 112)
-        knowledge_connection(108, 113)
-        # Heroes Layer 4
-        # region Hero Favors
-        knowledge_connection(111, 114)
-        knowledge_connection(112, 114)
-        # endregion
-        # Heroes Layer 5
-        knowledge_connection(114, 115)
-        knowledge_connection(113, 116)
-        # Heroes Layer 6
-        knowledge_connection(115, 117)
-        knowledge_connection(116, 118)
-        # endregion
-        # region Powers
-        # Powers Layer 1
-        knowledge_connection(powers_region, 119)
-        knowledge_connection(powers_region, 120)
-        knowledge_connection(powers_region, 121)
-        # Powers Layer 2
-        knowledge_connection(119, 122)
-        knowledge_connection(120, 123)
-        knowledge_connection(121, 124)
-        # Powers Layer 3
-        knowledge_connection(122, 125)
-        knowledge_connection(123, 126)
-        # region Powerful Monkey Storm
-        knowledge_connection(124, 132)
-        knowledge_connection(126, 132)
-        # endregion
-        # Powers Layer 4
-        knowledge_connection(125, 129)
-        knowledge_connection(126, 127)
-        knowledge_connection(132, 128)
-        # Powers Layer 5
-        knowledge_connection(128, 130)
-        knowledge_connection(128, 131)
-        # Powers Layer 6
-        knowledge_connection(130, 133)
-        # endregion
+            # Primary Layer 1
+            knowledge_connection(primary_region, 0)
+            knowledge_connection(primary_region, 1)
+            knowledge_connection(primary_region, 2)
+            # Primary Layer 2
+            knowledge_connection(0, 4)
+            knowledge_connection(4, 3)
+            knowledge_connection(0, 5)
+            knowledge_connection(1, 6)
+            knowledge_connection(1, 7)
+            knowledge_connection(2, 8)
+            # Primary Layer 3
+            knowledge_connection(3, 9)
+            knowledge_connection(4, 10)
+            knowledge_connection(5, 11)
+            knowledge_connection(6, 12)
+            knowledge_connection(7, 13)
+            knowledge_connection(13, 16)
+            knowledge_connection(8, 14)
+            knowledge_connection(8, 15)
+            # Primary Layer 4
+            knowledge_connection(10, 17)
+            knowledge_connection(11, 18)
+            knowledge_connection(13, 19)
+            knowledge_connection(14, 20)
+            knowledge_connection(18, 21)
+            knowledge_connection(19, 21)
+            # Primary Layer 5
+            knowledge_connection(17, 22)
+            knowledge_connection(17, 23)
+            knowledge_connection(18, 24)
+            knowledge_connection(12, 25)
+            knowledge_connection(19, 26)
+            knowledge_connection(26, 28)
+            knowledge_connection(20, 27)
+            # Primary Layer 6
+            knowledge_connection(24, 29)
+            knowledge_connection(27, 30)
+            knowledge_connection(29, 31)
+            knowledge_connection(30, 31)
+            # Military Layer 1
+            knowledge_connection(military_region, 32)
+            knowledge_connection(military_region, 33)
+            knowledge_connection(military_region, 34)
+            knowledge_connection(military_region, 35)
+            # Military Layer 2
+            knowledge_connection(32, 36)
+            knowledge_connection(33, 37)
+            knowledge_connection(34, 38)
+            # Military Layer 3
+            knowledge_connection(military_region, 39)
+            knowledge_connection(32, 40)
+            knowledge_connection(36, 41)
+            knowledge_connection(37, 42)
+            knowledge_connection(33, 43)
+            knowledge_connection(38, 44)
+            knowledge_connection(35, 45)
+            # Military Layer 4
+            knowledge_connection(40, 46)
+            knowledge_connection(41, 47)
+            knowledge_connection(42, 48)
+            knowledge_connection(39, 49)
+            knowledge_connection(45, 50)
+            # Military Layer 5
+            knowledge_connection(46, 56)
+            knowledge_connection(47, 56)
+            knowledge_connection(48, 52)
+            knowledge_connection(52, 55)
+            knowledge_connection(43, 51)
+            knowledge_connection(49, 54)
+            knowledge_connection(44, 53)
+            # Military Layer 6
+            knowledge_connection(56, 57)
+            knowledge_connection(47, 58)
+            knowledge_connection(51, 59)
+            knowledge_connection(59, 60)
+            knowledge_connection(52, 60)
+            # Military Layer 7
+            knowledge_connection(57, 61)
+            knowledge_connection(53, 61)
+            # Magic Layer 1
+            knowledge_connection(magic_region, 62)
+            knowledge_connection(magic_region, 64)
+            knowledge_connection(magic_region, 63)
+            # Magic Layer 2
+            knowledge_connection(62, 65)
+            knowledge_connection(62, 66)
+            knowledge_connection(64, 67)
+            knowledge_connection(63, 68)
+            knowledge_connection(68, 69)
+            # Magic Layer 3
+            knowledge_connection(65, 70)
+            knowledge_connection(66, 71)
+            knowledge_connection(67, 72)
+            knowledge_connection(68, 73)
+            knowledge_connection(67, 78)
+            knowledge_connection(63, 78)
+            # Magic Layer 4
+            knowledge_connection(71, 74)
+            knowledge_connection(72, 77)
+            knowledge_connection(73, 76)
+            knowledge_connection(78, 75)
+            # Magic Layer 5
+            knowledge_connection(77, 81)
+            knowledge_connection(74, 80)
+            knowledge_connection(70, 79)
+            # Magic Layer 6
+            knowledge_connection(79, 83)
+            knowledge_connection(81, 83)
+            knowledge_connection(75, 82)
+            # Support Layer 1
+            knowledge_connection(support_region, 84)
+            knowledge_connection(support_region, 85)
+            # Support Layer 2
+            knowledge_connection(84, 86)
+            knowledge_connection(84, 87)
+            knowledge_connection(85, 88)
+            # Support Layer 3
+            knowledge_connection(86, 90)
+            knowledge_connection(87, 91)
+            knowledge_connection(85, 92)
+            knowledge_connection(support_region, 89)
+            # Support Layer 4
+            knowledge_connection(90, 94)
+            knowledge_connection(91, 95)
+            knowledge_connection(92, 97)
+            knowledge_connection(88, 93)
+            knowledge_connection(89, 96)
+            # Support Layer 5
+            knowledge_connection(94, 98)
+            knowledge_connection(95, 103)
+            knowledge_connection(97, 102)
+            knowledge_connection(93, 99)
+            knowledge_connection(96, 100)
+            knowledge_connection(96, 101)
+            # Support Layer 6
+            knowledge_connection(98, 104)
+            knowledge_connection(100, 105)
+            # Heroes Layer 1
+            knowledge_connection(heroes_region, 106)
+            knowledge_connection(heroes_region, 107)
+            knowledge_connection(heroes_region, 108)
+            # Heroes Layer 2
+            knowledge_connection(106, 109)
+            knowledge_connection(107, 110)
+            # Heroes Layer 3
+            knowledge_connection(109, 111)
+            knowledge_connection(110, 112)
+            knowledge_connection(108, 113)
+            # Heroes Layer 4
+            knowledge_connection(111, 114)
+            knowledge_connection(112, 114)
+            # Heroes Layer 5
+            knowledge_connection(114, 115)
+            knowledge_connection(113, 116)
+            # Heroes Layer 6
+            knowledge_connection(115, 117)
+            knowledge_connection(116, 118)
+            # Powers Layer 1
+            knowledge_connection(powers_region, 119)
+            knowledge_connection(powers_region, 120)
+            knowledge_connection(powers_region, 121)
+            # Powers Layer 2
+            knowledge_connection(119, 122)
+            knowledge_connection(120, 123)
+            knowledge_connection(121, 124)
+            # Powers Layer 3
+            knowledge_connection(122, 125)
+            knowledge_connection(123, 126)
+            knowledge_connection(124, 132)
+            knowledge_connection(126, 132)
+            # Powers Layer 4
+            knowledge_connection(125, 129)
+            knowledge_connection(126, 127)
+            knowledge_connection(132, 128)
+            # Powers Layer 5
+            knowledge_connection(128, 130)
+            knowledge_connection(128, 131)
+            # Powers Layer 6
+            knowledge_connection(130, 133)
+        else:
+            # Progressive mode: knowledge is applied automatically in-game when
+            # "Progressive Knowledge" items are received. No Tree locations exist —
+            # there's nothing to click or check.
+            pass
         # endregion
 
         # visualize_regions(
@@ -617,4 +608,9 @@ class BTD6World(World):
             "staticXPReq": int(self.options.static_req.value),
             "maxLevel": int(self.options.max_level.value),
             "difficulty": int(self.options.rando_difficulty.value),
+            "popTierChecks": bool(self.options.pop_tier_checks.value),
+            "tier3PopRequirement": int(self.options.tier3_pop_requirement.value),
+            "tier4PopRequirement": int(self.options.tier4_pop_requirement.value),
+            "tier5PopRequirement": int(self.options.tier5_pop_requirement.value),
+            "progressiveKnowledge": bool(self.options.progressive_knowledge.value),
         }

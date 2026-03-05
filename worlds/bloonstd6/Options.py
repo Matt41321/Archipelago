@@ -108,8 +108,8 @@ class StartingMonkeyAmount(Range):
 
 class XPCurve(Toggle):
     """
-    Off: Static
-    On: Curved
+    False: Static
+    True: Curved
 
     Static: A Configurable Amount of XP is Required to Level Up EACH time.
     Curved: Uses the default XP Curve from BTD6
@@ -143,6 +143,63 @@ class MaxLevel(Range):
     default = 40
 
 
+class ProgressiveKnowledge(Toggle):
+    """
+    False/Off: Each individual Monkey Knowledge node is its own item in the multiworld pool.
+               Receiving one unlocks that specific node in the Knowledge Tree (original behaviour).
+    True/On:  All 134 individual knowledge items are replaced with 7 "Progressive Knowledge" items.
+              Each one you receive unlocks the next full layer of the Knowledge Tree across all branches.
+    """
+
+    display_name = "Progressive Knowledge"
+
+
+class PopTierChecks(Toggle):
+    """
+    False/Off: Monkey upgrade tiers are not locked behind pop counts.
+    True/On:  Tier 3, 4, and 5 upgrades for each monkey are locked until that monkey
+              has accumulated enough pops. Hitting each threshold sends a check.
+    """
+
+    display_name = "Pop Tier Checks"
+
+
+class Tier3PopRequirement(Range):
+    """
+    Number of pops required with a monkey to unlock its Tier 3 upgrades and send a check.
+    Only used when Pop Tier Checks is enabled.
+    """
+
+    display_name = "Tier 3 Pop Requirement"
+    range_start = 100
+    range_end = 1000
+    default = 200
+
+
+class Tier4PopRequirement(Range):
+    """
+    Number of pops required with a monkey to unlock its Tier 4 upgrades and send a check.
+    Only used when Pop Tier Checks is enabled.
+    """
+
+    display_name = "Tier 4 Pop Requirement"
+    range_start = 1000
+    range_end = 10000
+    default = 2000
+
+
+class Tier5PopRequirement(Range):
+    """
+    Number of pops required with a monkey to unlock its Tier 5 upgrades and send a check.
+    Only used when Pop Tier Checks is enabled.
+    """
+
+    display_name = "Tier 5 Pop Requirement"
+    range_start = 5000
+    range_end = 100000
+    default = 10000
+
+
 @dataclass
 class BloonsTD6Options(PerGameCommonOptions):
     starting_map_count: StartingMaps
@@ -156,3 +213,8 @@ class BloonsTD6Options(PerGameCommonOptions):
     xp_curve: XPCurve
     static_req: StaticXPRequirement
     max_level: MaxLevel
+    progressive_knowledge: ProgressiveKnowledge
+    pop_tier_checks: PopTierChecks
+    tier3_pop_requirement: Tier3PopRequirement
+    tier4_pop_requirement: Tier4PopRequirement
+    tier5_pop_requirement: Tier5PopRequirement

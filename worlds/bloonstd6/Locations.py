@@ -170,11 +170,20 @@ class BloonsLocations:
             self.locations[f"{name}-Tree"] = index
             index += 1
 
+        for name in Shared.monkeyIDs:
+            self.locations[f"{name}-Tier3"] = index
+            self.locations[f"{name}-Tier4"] = index + 1
+            self.locations[f"{name}-Tier5"] = index + 2
+            index += 3
+
         self.auto_location_groups["knowledge"] = set(
-            name for names in self.locations.keys() if names.endswith("-Tree")
+            name for name in self.locations.keys() if name.endswith("-Tree")
+        )
+        self.auto_location_groups["poptiers"] = set(
+            name for name in self.locations.keys() if name.endswith(("-Tier3", "-Tier4", "-Tier5"))
         )
         self.auto_location_groups["level"] = set(
-            name for names in self.locations.keys() if names.startswith("Level ")
+            name for name in self.locations.keys() if name.startswith("Level ")
         )
 
     def get_maps(self, minDiff=0, maxDiff=3) -> List[str]:

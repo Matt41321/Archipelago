@@ -42,6 +42,13 @@ class BTD6KnowledgeUnlock(Item):
         super().__init__(name, ItemClassification.progression, code, player)
 
 
+class BTD6ProgressiveKnowledge(Item):
+    game: str = "Bloons TD6"
+
+    def __init__(self, code: Optional[int], player: int):
+        super().__init__("Progressive Knowledge", ItemClassification.useful, code, player)
+
+
 class BTD6FillerItem(Item):
     game: str = "Bloons TD6"
 
@@ -55,6 +62,9 @@ class BloonsItems:
 
     MONEY_NAME: str = "Monkey Money"
     MONEY_CODE: int = 2
+
+    PROGRESSIVE_KNOWLEDGE_NAME: str = "Progressive Knowledge"
+    PROGRESSIVE_KNOWLEDGE_CODE: int = 999
 
     item_offset = 3
 
@@ -95,6 +105,7 @@ class BloonsItems:
 
         self.items[self.MEDAL_NAME] = self.MEDAL_CODE
         self.items[self.MONEY_NAME] = self.MONEY_CODE
+        self.items[self.PROGRESSIVE_KNOWLEDGE_NAME] = self.PROGRESSIVE_KNOWLEDGE_CODE
 
         index = self.item_offset
         for name in maplist:
@@ -117,5 +128,6 @@ class BloonsItems:
             name for names in self.items.keys() if names.endswith("-TUnlock")
         )
         self.auto_item_groups["knowledge"] = set(
-            name for names in self.items.keys() if names.endswith("-KUnlock")
-        )
+            name for name in self.items.keys() if name.endswith("-KUnlock")
+        ) | {self.PROGRESSIVE_KNOWLEDGE_NAME}
+
