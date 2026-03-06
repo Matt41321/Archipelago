@@ -327,6 +327,8 @@ class BTD6World(World):
             self.multiworld.regions.append(pop_tier_region)
             menu_region.connect(pop_tier_region)
             for monkey in self.bloonsItemData.monkeyIDs:
+                if f"{monkey}-Tier3" not in self.bloonsMapData.locations:
+                    continue
                 pop_tier_region.add_locations({
                     f"{monkey}-Tier3": self.bloonsMapData.locations[f"{monkey}-Tier3"],
                     f"{monkey}-Tier4": self.bloonsMapData.locations[f"{monkey}-Tier4"],
