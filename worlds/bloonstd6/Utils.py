@@ -179,7 +179,6 @@ class Shared:
         "Mermonkey",
         "BananaFarm",
         "SpikeFactory",
-        "MonkeyVillage",
         "EngineerMonkey",
         "BeastHandler",
         "Desperado",
