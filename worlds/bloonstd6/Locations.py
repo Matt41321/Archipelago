@@ -91,6 +91,7 @@ class BloonsLocations:
             "Chutes",
             "Rake",
             "SpiceIslands",
+            "LostCrevasse",
         ],
         "advanced": [
             "CastleRevenge",
@@ -113,7 +114,6 @@ class BloonsLocations:
             "AncientPortal",
             "EnchantedGlade",
             "LastResort",
-            "LostCrevasse",
             "PartyParade",
             "SunsetGulch",
         ],
