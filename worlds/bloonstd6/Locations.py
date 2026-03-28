@@ -176,6 +176,12 @@ class BloonsLocations:
             self.locations[f"{name}-Tier5"] = index + 2
             index += 3
 
+        all_maps = [m for maps in self.map_names_by_difficulty.values() for m in maps]
+        for map_name in all_maps:
+            for i in range(1, 101):
+                self.locations[f"{map_name}-Round {i}"] = index
+                index += 1
+
         self.auto_location_groups["knowledge"] = set(
             name for name in self.locations.keys() if name.endswith("-Tree")
         )
@@ -184,6 +190,9 @@ class BloonsLocations:
         )
         self.auto_location_groups["level"] = set(
             name for name in self.locations.keys() if name.startswith("Level ")
+        )
+        self.auto_location_groups["rounds"] = set(
+            name for name in self.locations.keys() if "-Round " in name
         )
 
     def get_maps(self, minDiff=0, maxDiff=3) -> List[str]:

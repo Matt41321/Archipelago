@@ -1,4 +1,5 @@
 import math
+import random
 from BaseClasses import Item, Region
 from Utils import visualize_regions
 from worlds.AutoWorld import World
@@ -10,13 +11,16 @@ from worlds.generic.Rules import add_rule, set_rule
 from .Options import BloonsTD6Options, Difficulty
 from .Locations import BTD6Hero, BTD6Knowledge, BTD6Map, BTD6Medal, BloonsLocations
 from .Items import (
+    BTD6CategoryUnlock,
     BTD6FillerItem,
     BTD6HeroUnlock,
     BTD6KnowledgeUnlock,
     BTD6ProgressiveKnowledge,
+    BTD6ProgressivePrices,
     BTD6MapUnlock,
     BTD6MedalItem,
     BTD6MonkeyUnlock,
+    BTD6TrapItem,
     BloonsItems,
 )
 from .Utils import Shared
@@ -65,7 +69,17 @@ class BTD6World(World):
         self.random.shuffle(available_maps)
 
         # Select Victory Map
-        self.victory_map_name = available_maps.pop()
+        # Boss/Elite Boss events only work on Beginner or Intermediate maps
+        if self.options.goal.value >= 1:
+            boss_eligible_maps = self.bloonsMapData.get_maps(
+                0, min(self.options.max_map_diff.value, 1)
+            )
+            self.random.shuffle(boss_eligible_maps)
+            self.victory_map_name = boss_eligible_maps[0]
+            if self.victory_map_name in available_maps:
+                available_maps.remove(self.victory_map_name)
+        else:
+            self.victory_map_name = available_maps.pop()
 
         # Select and initialize starting maps
         for _ in range(self.options.starting_map_count.value):
@@ -81,25 +95,54 @@ class BTD6World(World):
             self.included_maps.append(available_maps.pop())
 
         ## Handle start of game initialization for monkey towers
-        available_towers: List[str] = self.bloonsItemData.monkeyIDs.copy()
+        self.remaining_categories: List[str] = []
 
-        # Sets starting monkey to Dart Monkey or randomizes it based on options
-        if not self.options.starting_monkey.value:
-            self.starting_monkeys.append(available_towers.pop(0))
-            self.random.shuffle(available_towers)
+        # Towers that can deal damage (used to guarantee at least one attacker when randomizing)
+        damage_towers = {
+            "DartMonkey", "BoomerangMonkey", "BombShooter", "TackShooter",
+            "Desperado", "IceMonkey", "SniperMonkey", "MonkeySub",
+            "MonkeyBuccaneer", "WizardMonkey", "NinjaMonkey", "Druid",
+            "Mermonkey", "EngineerMonkey", "BeastHandler",
+        }
+
+        if self.options.category_lock.value:
+            # Category Lock: start with one random category, other 3 are items
+            categories = BloonsItems.category_names.copy()
+            self.random.shuffle(categories)
+            starting_category = categories.pop(0)
+
+            # Precollect all towers in the starting category
+            for tower in BloonsItems.category_towers[starting_category]:
+                self.multiworld.push_precollected(self.create_item(tower))
+                self.starting_monkeys.append(tower)
+
+            # Remaining categories become items
+            self.remaining_categories = categories
+            # No individual monkey items when category lock is on
         else:
-            self.random.shuffle(available_towers)
-            self.starting_monkeys.append(available_towers.pop())
+            available_towers: List[str] = self.bloonsItemData.monkeyIDs.copy()
 
-        # Adds additional starting monkeys based on options
-        for _ in range(self.options.num_start_monkey.value - 1):
-            self.starting_monkeys.append(available_towers.pop())
+            # Sets starting monkey to Dart Monkey or randomizes it based on options
+            if not self.options.starting_monkey.value:
+                self.starting_monkeys.append(available_towers.pop(0))
+                self.random.shuffle(available_towers)
+            else:
+                self.random.shuffle(available_towers)
+                # Ensure first starting monkey can deal damage
+                damage_pool = [t for t in available_towers if t in damage_towers]
+                first_monkey = self.random.choice(damage_pool)
+                available_towers.remove(first_monkey)
+                self.starting_monkeys.append(first_monkey)
 
-        for monkey in self.starting_monkeys:
-            self.multiworld.push_precollected(self.create_item(monkey))
+            # Adds additional starting monkeys based on options
+            for _ in range(self.options.num_start_monkey.value - 1):
+                self.starting_monkeys.append(available_towers.pop())
 
-        # Put the rest of the monkeys into storage for item generation
-        self.remaining_monkeys.extend(available_towers)
+            for monkey in self.starting_monkeys:
+                self.multiworld.push_precollected(self.create_item(monkey))
+
+            # Put the rest of the monkeys into storage for item generation
+            self.remaining_monkeys.extend(available_towers)
 
     def create_item(self, name: str) -> Item:
         if name == self.bloonsItemData.MEDAL_NAME:
@@ -108,8 +151,38 @@ class BTD6World(World):
         if name == self.bloonsItemData.MONEY_NAME:
             return BTD6FillerItem(name, self.bloonsItemData.MONEY_CODE, self.player)
 
+        if name == self.bloonsItemData.MONKEY_BOOST_NAME:
+            return BTD6FillerItem(name, self.bloonsItemData.MONKEY_BOOST_CODE, self.player)
+
+        if name == self.bloonsItemData.MONKEY_STORM_NAME:
+            return BTD6FillerItem(name, self.bloonsItemData.MONKEY_STORM_CODE, self.player)
+
+        if name == self.bloonsItemData.CASH_DROP_NAME:
+            return BTD6FillerItem(name, self.bloonsItemData.CASH_DROP_CODE, self.player)
+
         if name == self.bloonsItemData.PROGRESSIVE_KNOWLEDGE_NAME:
             return BTD6ProgressiveKnowledge(self.bloonsItemData.PROGRESSIVE_KNOWLEDGE_CODE, self.player)
+
+        if name == self.bloonsItemData.PROGRESSIVE_PRICES_NAME:
+            return BTD6ProgressivePrices(self.bloonsItemData.PROGRESSIVE_PRICES_CODE, self.player)
+
+        if name in BloonsItems.category_towers:
+            return BTD6CategoryUnlock(name, self.bloonsItemData.items[name], self.player)
+
+        if name == self.bloonsItemData.MODIFIED_BLOONS_NAME:
+            return BTD6TrapItem(name, self.bloonsItemData.MODIFIED_BLOONS_CODE, self.player)
+
+        if name == self.bloonsItemData.FREEZE_TRAP_NAME:
+            return BTD6TrapItem(name, self.bloonsItemData.FREEZE_TRAP_CODE, self.player)
+
+        if name == self.bloonsItemData.BEE_TRAP_NAME:
+            return BTD6TrapItem(name, self.bloonsItemData.BEE_TRAP_CODE, self.player)
+
+        if name == self.bloonsItemData.SPEED_UP_TRAP_NAME:
+            return BTD6TrapItem(name, self.bloonsItemData.SPEED_UP_TRAP_CODE, self.player)
+
+        if name == self.bloonsItemData.LITERATURE_TRAP_NAME:
+            return BTD6TrapItem(name, self.bloonsItemData.LITERATURE_TRAP_CODE, self.player)
 
         map = self.bloonsItemData.items.get(f"{name}-MUnlock")
         monkey = self.bloonsItemData.items.get(f"{name}-TUnlock")
@@ -139,13 +212,23 @@ class BTD6World(World):
             self.multiworld.itempool.append(self.create_item(BloonsItems.MEDAL_NAME))
             item_count += 1
 
-        for monkey in self.remaining_monkeys:
-            self.multiworld.itempool.append(self.create_item(monkey))
-            item_count += 1
+        if self.options.category_lock.value:
+            for cat in self.remaining_categories:
+                self.multiworld.itempool.append(self.create_item(cat))
+                item_count += 1
+        else:
+            for monkey in self.remaining_monkeys:
+                self.multiworld.itempool.append(self.create_item(monkey))
+                item_count += 1
 
         for hero in self.available_heroes:
             self.multiworld.itempool.append(self.create_item(hero))
             item_count += 1
+
+        if self.options.progressive_prices.value:
+            for _ in range(3):
+                self.multiworld.itempool.append(self.create_item(BloonsItems.PROGRESSIVE_PRICES_NAME))
+                item_count += 1
 
         if self.options.progressive_knowledge.value:
             # Progressive mode: 7 items unlock knowledge layer by layer
@@ -161,8 +244,42 @@ class BTD6World(World):
         filler_items = (
             len(self.multiworld.get_unfilled_locations(self.player)) - item_count
         )
-        for _ in range(filler_items):
-            self.multiworld.itempool.append(self.create_item(BloonsItems.MONEY_NAME))
+
+        # Split filler between traps and Monkey Money based on trap percentage
+        trap_count = 0
+        if self.options.trap_percentage.value > 0 and filler_items > 0:
+            trap_count = max(0, int(filler_items * (self.options.trap_percentage.value / 100)))
+
+        money_count = filler_items - trap_count
+
+        # Distribute traps by weight across trap types
+        trap_names = [
+            BloonsItems.MODIFIED_BLOONS_NAME,
+            BloonsItems.FREEZE_TRAP_NAME,
+            BloonsItems.BEE_TRAP_NAME,
+            BloonsItems.SPEED_UP_TRAP_NAME,
+            BloonsItems.LITERATURE_TRAP_NAME,
+        ]
+        trap_weights = [
+            max(0, self.options.modified_bloons_weight.value),
+            max(0, self.options.freeze_weight.value),
+            max(0, self.options.bee_weight.value),
+            max(0, self.options.speed_up_weight.value),
+            max(0, self.options.literature_weight.value),
+        ]
+        if sum(trap_weights) == 0:
+            trap_weights = [1, 1, 1, 1, 1]  # equal distribution if all weights are zero
+        for _ in range(trap_count):
+            chosen = random.choices(trap_names, weights=trap_weights, k=1)[0]
+            self.multiworld.itempool.append(self.create_item(chosen))
+        # Split non-trap filler evenly between Monkey Boost, Monkey Storm, and Cash Boost
+        filler_cycle = [
+            BloonsItems.MONKEY_BOOST_NAME,
+            BloonsItems.MONKEY_STORM_NAME,
+            BloonsItems.CASH_DROP_NAME,
+        ]
+        for i in range(money_count):
+            self.multiworld.itempool.append(self.create_item(filler_cycle[i % 3]))
 
     def create_regions(self) -> None:
         menu_region = Region("Menu", self.player, self.multiworld)
@@ -173,9 +290,11 @@ class BTD6World(World):
             menu_region,
             map_select_region,
             xp_region,
+            hero_select_region,
         ]
         menu_region.connect(map_select_region)
         menu_region.connect(xp_region)
+        menu_region.connect(hero_select_region)
 
         all_maps_copy = self.starting_maps.copy()
         incl_maps_copy = self.included_maps.copy()
@@ -256,53 +375,78 @@ class BTD6World(World):
                     },
                     BTD6Medal,
                 )
-                add_rule(
-                    self.multiworld.get_location(f"{name}-PrimaryOnly", self.player),
-                    rule=lambda state: state.has_from_list(
-                        {
-                            "DartMonkey-TUnlock",
-                            "BoomerangMonkey-TUnlock",
-                            "BombShooter-TUnlock",
-                            "TackShooter-TUnlock",
-                            "IceMonkey-TUnlock",
-                            "GlueGunner-TUnlock",
-                            "Desperado-TUnlock"
-                        },
-                        self.player,
-                        2,
-                    ),
-                )
-                add_rule(
-                    self.multiworld.get_location(f"{name}-MilitaryOnly", self.player),
-                    rule=lambda state: state.has_from_list(
-                        {
-                            "SniperMonkey-TUnlock",
-                            "MonkeySub-TUnlock",
-                            "MonkeyBuccaneer-TUnlock",
-                            "MonkeyAce-TUnlock",
-                            "HeliPilot-TUnlock",
-                            "MortarMonkey-TUnlock",
-                            "DartlingGunner-TUnlock",
-                        },
-                        self.player,
-                        2,
-                    ),
-                )
-                add_rule(
-                    self.multiworld.get_location(f"{name}-MagicOnly", self.player),
-                    rule=lambda state: state.has_from_list(
-                        {
-                            "WizardMonkey-TUnlock",
-                            "SuperMonkey-TUnlock",
-                            "NinjaMonkey-TUnlock",
-                            "Alchemist-TUnlock",
-                            "Druid-TUnlock",
-                            "Mermonkey-TUnlock",
-                        },
-                        self.player,
-                        2,
-                    ),
-                )
+                if self.options.category_lock.value:
+                    add_rule(
+                        self.multiworld.get_location(f"{name}-PrimaryOnly", self.player),
+                        rule=lambda state: state.has("Primary Monkeys", self.player),
+                    )
+                    add_rule(
+                        self.multiworld.get_location(f"{name}-MilitaryOnly", self.player),
+                        rule=lambda state: state.has("Military Monkeys", self.player),
+                    )
+                    add_rule(
+                        self.multiworld.get_location(f"{name}-MagicOnly", self.player),
+                        rule=lambda state: state.has("Magic Monkeys", self.player),
+                    )
+                else:
+                    add_rule(
+                        self.multiworld.get_location(f"{name}-PrimaryOnly", self.player),
+                        rule=lambda state: state.has_from_list(
+                            {
+                                "DartMonkey-TUnlock",
+                                "BoomerangMonkey-TUnlock",
+                                "BombShooter-TUnlock",
+                                "TackShooter-TUnlock",
+                                "IceMonkey-TUnlock",
+                                "GlueGunner-TUnlock",
+                                "Desperado-TUnlock"
+                            },
+                            self.player,
+                            2,
+                        ),
+                    )
+                    add_rule(
+                        self.multiworld.get_location(f"{name}-MilitaryOnly", self.player),
+                        rule=lambda state: state.has_from_list(
+                            {
+                                "SniperMonkey-TUnlock",
+                                "MonkeySub-TUnlock",
+                                "MonkeyBuccaneer-TUnlock",
+                                "MonkeyAce-TUnlock",
+                                "HeliPilot-TUnlock",
+                                "MortarMonkey-TUnlock",
+                                "DartlingGunner-TUnlock",
+                            },
+                            self.player,
+                            2,
+                        ),
+                    )
+                    add_rule(
+                        self.multiworld.get_location(f"{name}-MagicOnly", self.player),
+                        rule=lambda state: state.has_from_list(
+                            {
+                                "WizardMonkey-TUnlock",
+                                "SuperMonkey-TUnlock",
+                                "NinjaMonkey-TUnlock",
+                                "Alchemist-TUnlock",
+                                "Druid-TUnlock",
+                                "Mermonkey-TUnlock",
+                            },
+                            self.player,
+                            2,
+                        ),
+                    )
+
+            # Handle Round Sanity Checks for this map
+            if self.options.round_sanity.value > 0:
+                interval = self.options.round_sanity.value
+                r = interval
+                while r <= 100:
+                    loc_name = f"{name}-Round {r}"
+                    region.add_locations(
+                        {loc_name: self.bloonsMapData.locations[loc_name]}
+                    )
+                    r += interval
         # endregion
 
         # region Hero Locations
@@ -615,4 +759,8 @@ class BTD6World(World):
             "tier4PopRequirement": int(self.options.tier4_pop_requirement.value),
             "tier5PopRequirement": int(self.options.tier5_pop_requirement.value),
             "progressiveKnowledge": bool(self.options.progressive_knowledge.value),
+            "roundSanity": int(self.options.round_sanity.value),
+            "progressivePrices": bool(self.options.progressive_prices.value),
+            "categoryLock": bool(self.options.category_lock.value),
+            "goal": int(self.options.goal.value),
         }
