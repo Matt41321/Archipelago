@@ -41,7 +41,7 @@ class BloonsLocations:
 
     map_names_by_difficulty: Dict[str, List[str]] = {
         "beginner": [
-            "Tutorial",
+            "MonkeyMeadow",
             "InTheLoop",
             "MiddleOfTheRoad",
             "Tinkerton",
@@ -154,7 +154,7 @@ class BloonsLocations:
                 self.locations[f"{name}-HalfCash"] = index + 10
                 self.locations[f"{name}-AlternateBloonsRounds"] = index + 11
                 self.locations[f"{name}-Impoppable"] = index + 12
-                self.locations[f"{name}-Clicks"] = index + 13
+                self.locations[f"{name}-Chimps"] = index + 13
                 self.locations[f"{name}-Unlock"] = index + 14
                 index += 15
 

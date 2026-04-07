@@ -72,6 +72,18 @@ class Difficulty(Choice):
     default = 4
 
 
+class TotalMedals(Range):
+    """
+    The total number of Medal items placed in the item pool.
+    These are the collectables required to unlock the goal map.
+    """
+
+    display_name = "Total Medals"
+    range_start = 20
+    range_end = 100
+    default = 60
+
+
 class MedalRequirementPercentage(Range):
     """
     The Percentage of the Total Medals required for you to access the Goal Map
@@ -339,6 +351,7 @@ class LiteratureWeight(Range):
 @dataclass
 class BloonsTD6Options(PerGameCommonOptions):
     goal: Goal
+    total_medals: TotalMedals
     medalreq: MedalRequirementPercentage
     total_maps: TotalMaps
     starting_map_count: StartingMaps

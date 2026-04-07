@@ -208,7 +208,7 @@ class BTD6World(World):
             self.multiworld.itempool.append(self.create_item(name))
             item_count += 1
 
-        for _ in range(len(all_map_keys) * self.options.rando_difficulty.value):
+        for _ in range(self.options.total_medals.value):
             self.multiworld.itempool.append(self.create_item(BloonsItems.MEDAL_NAME))
             item_count += 1
 
@@ -334,7 +334,7 @@ class BTD6World(World):
             )
             if self.options.rando_difficulty.value >= Difficulty.option_Advanced:
                 region.add_locations(
-                    {name + "-Clicks": self.bloonsMapData.locations[name + "-Clicks"]},
+                    {name + "-Chimps": self.bloonsMapData.locations[name + "-Chimps"]},
                     BTD6Medal,
                 )
             if self.options.rando_difficulty.value == Difficulty.option_Expert:
@@ -460,9 +460,55 @@ class BTD6World(World):
         # endregion
 
         # region Level Locations
+        # Levels are split into 7 XP-sphere sub-regions so the AP solver spreads items
+        # across the full level range rather than dumping everything into sphere 1.
+        #
+        # Cumulative XP thresholds (raw XP):
+        #   Sphere 1 : <  1 000 000
+        #   Sphere 2 :  1 000 000 –  5 000 000
+        #   Sphere 3 :  5 000 000 – 15 000 000
+        #   Sphere 4 : 15 000 000 – 30 000 000
+        #   Sphere 5 :  30 000 000 – 60 000 000
+        #   Sphere 6 :  60 000 000 – 120 000 000
+        #   Sphere 7 : 120 000 000 – 180 000 000
+
+        XP_THRESHOLDS = [0, 1_000_000, 5_000_000, 15_000_000, 30_000_000, 60_000_000, 120_000_000]
+  
+        SPHERE_MEDAL_PCTS = [0, 35, 50, 63, 75, 85, 93]
+
+        total_medals = self.options.total_medals.value
+
+        xp_sphere_regions = []
+        for s in range(7):
+            sr = Region(f"XP Sphere {s + 1}", self.player, self.multiworld)
+            self.multiworld.regions.append(sr)
+            xp_sphere_regions.append(sr)
+            n = max(0, int(total_medals * SPHERE_MEDAL_PCTS[s] / 100))
+            if n == 0:
+                xp_region.connect(sr)
+            else:
+                xp_region.connect(
+                    sr,
+                    rule=lambda state, medals=n: state.has(BloonsItems.MEDAL_NAME, self.player, medals),
+                )
+
         for i in range(self.options.max_level.value - 1):
-            name: str = f"Level {i+2}"
-            xp_region.add_locations({name: self.bloonsMapData.locations[name]})
+            level = i + 2
+            name  = f"Level {level}"
+
+            if self.options.xp_curve.value:
+                cum_xp = 0.3556 * (level ** 4)
+            else:
+                cum_xp = (level - 1) * self.options.static_req.value
+
+            sphere = 1
+            for threshold in XP_THRESHOLDS[1:]:
+                if cum_xp >= threshold:
+                    sphere += 1
+                else:
+                    break
+
+            xp_sphere_regions[sphere - 1].add_locations({name: self.bloonsMapData.locations[name]})
         # endregion
 
         # region Pop Tier Locations
@@ -731,25 +777,13 @@ class BTD6World(World):
         self.multiworld.completion_condition[self.player] = lambda state: state.has(
             BloonsItems.MEDAL_NAME,
             self.player,
-            int(
-                round(
-                    (len(self.starting_maps) + len(self.included_maps))
-                    * self.options.rando_difficulty.value
-                    * (self.options.medalreq.value / 100)
-                )
-            ),
+            int(round(self.options.total_medals.value * (self.options.medalreq.value / 100))),
         )
 
     def fill_slot_data(self) -> Dict[str, Any]:
         return {
             "victoryLocation": self.victory_map_name,
-            "medalsNeeded": int(
-                round(
-                    (len(self.starting_maps) + len(self.included_maps))
-                    * self.options.rando_difficulty.value
-                    * (self.options.medalreq.value / 100)
-                )
-            ),
+            "medalsNeeded": int(round(self.options.total_medals.value * (self.options.medalreq.value / 100))),
             "xpCurve": bool(self.options.xp_curve.value),
             "staticXPReq": int(self.options.static_req.value),
             "maxLevel": int(self.options.max_level.value),
