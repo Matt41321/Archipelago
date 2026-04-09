@@ -116,6 +116,7 @@ class BloonsLocations:
             "LastResort",
             "PartyParade",
             "SunsetGulch",
+            "MushroomGrotto",           
         ],
         "expert": [
             "GlacialTrail",
