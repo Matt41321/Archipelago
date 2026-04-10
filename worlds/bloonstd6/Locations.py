@@ -92,6 +92,7 @@ class BloonsLocations:
             "Rake",
             "SpiceIslands",
             "LostCrevasse",
+            "AncientPortal",
         ],
         "advanced": [
             "CastleRevenge",
@@ -111,7 +112,6 @@ class BloonsLocations:
             "OffTheCoast",
             "Cornfield",
             "Underground",
-            "AncientPortal",
             "EnchantedGlade",
             "LastResort",
             "PartyParade",
