@@ -53,7 +53,7 @@ class BTD6ProgressivePrices(Item):
     game: str = "Bloons TD6"
 
     def __init__(self, code: Optional[int], player: int):
-        super().__init__("Progressive Prices", ItemClassification.useful, code, player)
+        super().__init__("Progressive Prices", ItemClassification.progression, code, player)
 
 
 class BTD6CategoryUnlock(Item):

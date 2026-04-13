@@ -17,8 +17,8 @@ class TotalMaps(Range):
     This determines the number of \"Medal\" Items that are in the game in relation to your Randomizer Difficulty.
     """
 
-    range_start = 15
-    range_end = 60
+    range_start = 10
+    range_end = 85
     default = 15
     display_name = "Total Map Count"
 
@@ -157,7 +157,7 @@ class MaxLevel(Range):
     """
 
     display_name = "Maximum Level"
-    range_start = 40
+    range_start = 0
     range_end = 150
     default = 40
 

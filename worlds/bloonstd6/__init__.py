@@ -9,6 +9,7 @@ from Options import PerGameCommonOptions
 from worlds.generic.Rules import add_rule, set_rule
 
 from .Options import BloonsTD6Options, Difficulty
+from .Rules import set_map_rules, set_round_rule, has_economy, STARTING_DAMAGE_TOWERS
 from .Locations import BTD6Hero, BTD6Knowledge, BTD6Map, BTD6Medal, BloonsLocations
 from .Items import (
     BTD6CategoryUnlock,
@@ -53,16 +54,23 @@ class BTD6World(World):
 
         self.starting_monkeys: List[str] = []
         self.remaining_monkeys: List[str] = []
+        self.remaining_categories: List[str] = []
 
-        starting_hero: str = ""
-        self.available_heroes: List[str] = Shared.heroIDs.copy()
+        self.starting_hero: str = ""
+        self.available_heroes: List[str] = []
 
+        passthrough = getattr(self.multiworld, "re_gen_passthrough", {}).get("Bloons TD6", {})
+        if passthrough:
+            self._load_from_passthrough(passthrough)
+            return
+
+        self.available_heroes = Shared.heroIDs.copy()
         self.random.shuffle(self.available_heroes)
 
-        starting_hero = self.available_heroes.pop(0)
-        self.multiworld.push_precollected(self.create_item(starting_hero))
+        self.starting_hero = self.available_heroes.pop(0)
+        self.multiworld.push_precollected(self.create_item(self.starting_hero))
 
-        ## Handle selection of maps for locations
+        # Handle selection of maps for locations
         available_maps: List[str] = self.bloonsMapData.get_maps(
             self.options.min_map_diff.value, self.options.max_map_diff.value
         )
@@ -95,15 +103,9 @@ class BTD6World(World):
             self.included_maps.append(available_maps.pop())
 
         ## Handle start of game initialization for monkey towers
-        self.remaining_categories: List[str] = []
 
-        # Towers that can deal damage (used to guarantee at least one attacker when randomizing)
-        damage_towers = {
-            "DartMonkey", "BoomerangMonkey", "BombShooter", "TackShooter",
-            "Desperado", "IceMonkey", "SniperMonkey", "MonkeySub",
-            "MonkeyBuccaneer", "WizardMonkey", "NinjaMonkey", "Druid",
-            "Mermonkey", "EngineerMonkey", "BeastHandler",
-        }
+        # Towers that can deal damage and are affordable enough to start with.
+        damage_towers = STARTING_DAMAGE_TOWERS
 
         if self.options.category_lock.value:
             # Category Lock: start with one random category, other 3 are items
@@ -143,6 +145,36 @@ class BTD6World(World):
 
             # Put the rest of the monkeys into storage for item generation
             self.remaining_monkeys.extend(available_towers)
+
+    def _load_from_passthrough(self, passthrough: Dict[str, Any]) -> None:
+        """Restore generate_early state from slot data (used by Universal Tracker)."""
+        self.victory_map_name = passthrough["victoryLocation"]
+        self.starting_maps = list(passthrough["startingMaps"])
+        self.included_maps = list(passthrough["includedMaps"])
+        self.starting_monkeys = list(passthrough["startingMonkeys"])
+        self.starting_hero = passthrough["startingHero"]
+        self.available_heroes = list(passthrough["availableHeroes"])
+        self.remaining_categories = list(passthrough.get("remainingCategories", []))
+        # Remaining monkeys = all towers not chosen as starters
+        self.remaining_monkeys = [
+            t for t in self.bloonsItemData.monkeyIDs
+            if t not in self.starting_monkeys
+        ]
+        for map_name in self.starting_maps:
+            self.multiworld.push_precollected(self.create_item(map_name))
+        for monkey in self.starting_monkeys:
+            self.multiworld.push_precollected(self.create_item(monkey))
+        self.multiworld.push_precollected(self.create_item(self.starting_hero))
+
+    @staticmethod
+    def interpret_slot_data(slot_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Return slot data for the Universal Tracker's re_gen_passthrough mechanism.
+
+        The tracker calls this when connecting to a live game so it can regenerate
+        the world with the exact same map/tower/hero choices as the server used,
+        instead of re-randomising with a different seed.
+        """
+        return slot_data
 
     def create_item(self, name: str) -> Item:
         if name == self.bloonsItemData.MEDAL_NAME:
@@ -184,6 +216,15 @@ class BTD6World(World):
         if name == self.bloonsItemData.LITERATURE_TRAP_NAME:
             return BTD6TrapItem(name, self.bloonsItemData.LITERATURE_TRAP_CODE, self.player)
 
+        if name.endswith("-MUnlock") and name in self.bloonsItemData.items:
+            return BTD6MapUnlock(name, self.bloonsItemData.items[name], self.player)
+        if name.endswith("-TUnlock") and name in self.bloonsItemData.items:
+            return BTD6MonkeyUnlock(name, self.bloonsItemData.items[name], self.player)
+        if name.endswith("-HUnlock") and name in self.bloonsItemData.items:
+            return BTD6HeroUnlock(name, self.bloonsItemData.items[name], self.player)
+        if name.endswith("-KUnlock") and name in self.bloonsItemData.items:
+            return BTD6KnowledgeUnlock(name, self.bloonsItemData.items[name], self.player)
+
         map = self.bloonsItemData.items.get(f"{name}-MUnlock")
         monkey = self.bloonsItemData.items.get(f"{name}-TUnlock")
         knowledge = self.bloonsItemData.items.get(f"{name}-KUnlock")
@@ -195,7 +236,6 @@ class BTD6World(World):
         if knowledge:
             return BTD6KnowledgeUnlock(f"{name}-KUnlock", knowledge, self.player)
         return BTD6MonkeyUnlock(f"{name}-TUnlock", monkey, self.player)
-        # Remember to add Monkey Money later for future Hero Checks.
 
     def create_items(self) -> None:
         map_keys = self.included_maps.copy()
@@ -437,6 +477,9 @@ class BTD6World(World):
                         ),
                     )
 
+            # Attach capability-based access rules to all medal locations
+            set_map_rules(self, name)
+
             # Handle Round Sanity Checks for this map
             if self.options.round_sanity.value > 0:
                 interval = self.options.round_sanity.value
@@ -446,6 +489,7 @@ class BTD6World(World):
                     region.add_locations(
                         {loc_name: self.bloonsMapData.locations[loc_name]}
                     )
+                    set_round_rule(self, name, r)
                     r += interval
         # endregion
 
@@ -454,7 +498,7 @@ class BTD6World(World):
             region = Region(hero, self.player, self.multiworld)
             region.add_locations({hero: self.bloonsMapData.locations[hero]}, BTD6Hero)
             hero_select_region.connect(
-                region, rule=lambda state: state.has(hero + "-HUnlock", self.player)
+                region, rule=lambda state, h=hero: state.has(h + "-HUnlock", self.player)
             )
             self.multiworld.regions.append(region)
         # endregion
@@ -471,9 +515,8 @@ class BTD6World(World):
         #   Sphere 5 :  30 000 000 – 60 000 000
         #   Sphere 6 :  60 000 000 – 120 000 000
         #   Sphere 7 : 120 000 000 – 180 000 000
-
         XP_THRESHOLDS = [0, 1_000_000, 5_000_000, 15_000_000, 30_000_000, 60_000_000, 120_000_000]
-  
+
         SPHERE_MEDAL_PCTS = [0, 35, 50, 63, 75, 85, 93]
 
         total_medals = self.options.total_medals.value
@@ -774,11 +817,18 @@ class BTD6World(World):
         # )
 
     def set_rules(self) -> None:
-        self.multiworld.completion_condition[self.player] = lambda state: state.has(
-            BloonsItems.MEDAL_NAME,
-            self.player,
-            int(round(self.options.total_medals.value * (self.options.medalreq.value / 100))),
-        )
+        medals_needed = int(round(self.options.total_medals.value * (self.options.medalreq.value / 100)))
+        category_lock = bool(self.options.category_lock.value)
+        elite_boss = self.options.goal.value == 2
+        if elite_boss:
+            self.multiworld.completion_condition[self.player] = lambda state: (
+                state.has(BloonsItems.MEDAL_NAME, self.player, medals_needed)
+                and has_economy(state, self.player, category_lock)
+            )
+        else:
+            self.multiworld.completion_condition[self.player] = lambda state: (
+                state.has(BloonsItems.MEDAL_NAME, self.player, medals_needed)
+            )
 
     def fill_slot_data(self) -> Dict[str, Any]:
         return {
@@ -797,4 +847,11 @@ class BTD6World(World):
             "progressivePrices": bool(self.options.progressive_prices.value),
             "categoryLock": bool(self.options.category_lock.value),
             "goal": int(self.options.goal.value),
+            # Fields used by the Universal Tracker to reconstruct the exact same world.
+            "startingMaps": self.starting_maps,
+            "includedMaps": self.included_maps,
+            "startingMonkeys": self.starting_monkeys,
+            "startingHero": self.starting_hero,
+            "availableHeroes": self.available_heroes,
+            "remainingCategories": self.remaining_categories,
         }
