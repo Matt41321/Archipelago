@@ -847,6 +847,7 @@ class BTD6World(World):
             "progressivePrices": bool(self.options.progressive_prices.value),
             "categoryLock": bool(self.options.category_lock.value),
             "goal": int(self.options.goal.value),
+            "deathLink": bool(self.options.death_link.value),
             # Fields used by the Universal Tracker to reconstruct the exact same world.
             "startingMaps": self.starting_maps,
             "includedMaps": self.included_maps,

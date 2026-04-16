@@ -1,4 +1,4 @@
-from Options import Choice, Toggle, Range, PerGameCommonOptions
+from Options import Choice, Toggle, Range, DeathLink, PerGameCommonOptions
 from dataclasses import dataclass
 
 
@@ -371,6 +371,7 @@ class BloonsTD6Options(PerGameCommonOptions):
     tier4_pop_requirement: Tier4PopRequirement
     tier5_pop_requirement: Tier5PopRequirement
     round_sanity: RoundSanity
+    death_link: DeathLink
     trap_percentage: TrapPercentage
     modified_bloons_weight: ModifiedBloonsWeight
     freeze_weight: FreezeWeight

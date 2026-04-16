@@ -172,6 +172,8 @@ class BloonsLocations:
             index += 1
 
         for name in Shared.monkeyIDs:
+            if name == "MonkeyVillage":
+                continue
             self.locations[f"{name}-Tier3"] = index
             self.locations[f"{name}-Tier4"] = index + 1
             self.locations[f"{name}-Tier5"] = index + 2
