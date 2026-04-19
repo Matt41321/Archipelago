@@ -114,6 +114,15 @@ class BloonsItems:
     LITERATURE_TRAP_NAME: str = "Literature Trap"
     LITERATURE_TRAP_CODE: int = 1009
 
+    # Dict of trap name -> item code, used for weighted selection
+    trap_items: Dict[str, int] = {
+        "Modified Bloons": 1005,
+        "Freeze Trap": 1006,
+        "Bee Trap": 1007,
+        "Speed Up Trap": 1008,
+        "Literature Trap": 1009,
+    }
+
     MONKEY_BOOST_NAME: str = "Monkey Boost"
     MONKEY_BOOST_CODE: int = 1010
 
@@ -182,11 +191,8 @@ class BloonsItems:
         self.items[self.CATEGORY_MILITARY_NAME] = self.CATEGORY_MILITARY_CODE
         self.items[self.CATEGORY_MAGIC_NAME] = self.CATEGORY_MAGIC_CODE
         self.items[self.CATEGORY_SUPPORT_NAME] = self.CATEGORY_SUPPORT_CODE
-        self.items[self.MODIFIED_BLOONS_NAME] = self.MODIFIED_BLOONS_CODE
-        self.items[self.FREEZE_TRAP_NAME] = self.FREEZE_TRAP_CODE
-        self.items[self.BEE_TRAP_NAME] = self.BEE_TRAP_CODE
-        self.items[self.SPEED_UP_TRAP_NAME] = self.SPEED_UP_TRAP_CODE
-        self.items[self.LITERATURE_TRAP_NAME] = self.LITERATURE_TRAP_CODE
+        for trap_name, trap_code in self.trap_items.items():
+            self.items[trap_name] = trap_code
         self.items[self.MONKEY_BOOST_NAME] = self.MONKEY_BOOST_CODE
         self.items[self.MONKEY_STORM_NAME] = self.MONKEY_STORM_CODE
         self.items[self.CASH_DROP_NAME] = self.CASH_DROP_CODE

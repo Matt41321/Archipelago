@@ -2,13 +2,13 @@ import math
 import random
 from BaseClasses import Item, Region
 from Utils import visualize_regions
-from worlds.AutoWorld import World
+from worlds.AutoWorld import WebWorld, World
 
 from typing import Any, ClassVar, Dict, List, Type
 from Options import PerGameCommonOptions
 from worlds.generic.Rules import add_rule, set_rule
 
-from .Options import BloonsTD6Options, Difficulty
+from .Options import BloonsTD6Options, Difficulty, btd6_option_groups
 from .Rules import set_map_rules, set_round_rule, has_economy, STARTING_DAMAGE_TOWERS
 from .Locations import BTD6Hero, BTD6Knowledge, BTD6Map, BTD6Medal, BloonsLocations
 from .Items import (
@@ -27,6 +27,10 @@ from .Items import (
 from .Utils import Shared
 
 
+class BTD6Web(WebWorld):
+    option_groups = btd6_option_groups
+
+
 class BTD6World(World):
     """
     Bloons TD6 is a tower defense game about Monkeys trying to defend themselves against the Balloon onslaught.
@@ -35,6 +39,7 @@ class BTD6World(World):
 
     # World Options
     game = "Bloons TD6"
+    web = BTD6Web()
     options_dataclass: ClassVar[Type[PerGameCommonOptions]] = BloonsTD6Options
     options: BloonsTD6Options
 
@@ -46,6 +51,26 @@ class BTD6World(World):
 
     item_name_groups = bloonsItemData.auto_item_groups
     location_name_groups = bloonsMapData.auto_location_groups
+
+    def _apply_map_filters(self, maps: List[str]) -> List[str]:
+        """Apply whitelist and blacklist options to a map list.
+        Blacklisted maps are removed. Whitelisted maps are moved to the end so they
+        are popped first and guaranteed into the pool before random maps fill remaining slots."""
+        blacklist_ids = {
+            resolved for name in self.options.map_blacklist.value
+            if (resolved := BloonsLocations.resolve_map_name(name)) is not None
+        }
+        whitelist_ids = {
+            resolved for name in self.options.map_whitelist.value
+            if (resolved := BloonsLocations.resolve_map_name(name)) is not None
+        }
+        if blacklist_ids:
+            maps = [m for m in maps if m not in blacklist_ids]
+        if whitelist_ids:
+            guaranteed = [m for m in maps if m in whitelist_ids]
+            rest = [m for m in maps if m not in whitelist_ids]
+            maps = rest + guaranteed
+        return maps
 
     def generate_early(self) -> None:
         ## Initialize per-player instances of variables:
@@ -75,6 +100,7 @@ class BTD6World(World):
             self.options.min_map_diff.value, self.options.max_map_diff.value
         )
         self.random.shuffle(available_maps)
+        available_maps = self._apply_map_filters(available_maps)
 
         # Select Victory Map
         # Boss/Elite Boss events only work on Beginner or Intermediate maps
@@ -83,6 +109,7 @@ class BTD6World(World):
                 0, min(self.options.max_map_diff.value, 1)
             )
             self.random.shuffle(boss_eligible_maps)
+            boss_eligible_maps = self._apply_map_filters(boss_eligible_maps)
             self.victory_map_name = boss_eligible_maps[0]
             if self.victory_map_name in available_maps:
                 available_maps.remove(self.victory_map_name)
@@ -201,20 +228,8 @@ class BTD6World(World):
         if name in BloonsItems.category_towers:
             return BTD6CategoryUnlock(name, self.bloonsItemData.items[name], self.player)
 
-        if name == self.bloonsItemData.MODIFIED_BLOONS_NAME:
-            return BTD6TrapItem(name, self.bloonsItemData.MODIFIED_BLOONS_CODE, self.player)
-
-        if name == self.bloonsItemData.FREEZE_TRAP_NAME:
-            return BTD6TrapItem(name, self.bloonsItemData.FREEZE_TRAP_CODE, self.player)
-
-        if name == self.bloonsItemData.BEE_TRAP_NAME:
-            return BTD6TrapItem(name, self.bloonsItemData.BEE_TRAP_CODE, self.player)
-
-        if name == self.bloonsItemData.SPEED_UP_TRAP_NAME:
-            return BTD6TrapItem(name, self.bloonsItemData.SPEED_UP_TRAP_CODE, self.player)
-
-        if name == self.bloonsItemData.LITERATURE_TRAP_NAME:
-            return BTD6TrapItem(name, self.bloonsItemData.LITERATURE_TRAP_CODE, self.player)
+        if name in BloonsItems.trap_items:
+            return BTD6TrapItem(name, BloonsItems.trap_items[name], self.player)
 
         if name.endswith("-MUnlock") and name in self.bloonsItemData.items:
             return BTD6MapUnlock(name, self.bloonsItemData.items[name], self.player)
@@ -293,22 +308,14 @@ class BTD6World(World):
         money_count = filler_items - trap_count
 
         # Distribute traps by weight across trap types
-        trap_names = [
-            BloonsItems.MODIFIED_BLOONS_NAME,
-            BloonsItems.FREEZE_TRAP_NAME,
-            BloonsItems.BEE_TRAP_NAME,
-            BloonsItems.SPEED_UP_TRAP_NAME,
-            BloonsItems.LITERATURE_TRAP_NAME,
-        ]
-        trap_weights = [
-            max(0, self.options.modified_bloons_weight.value),
-            max(0, self.options.freeze_weight.value),
-            max(0, self.options.bee_weight.value),
-            max(0, self.options.speed_up_weight.value),
-            max(0, self.options.literature_weight.value),
-        ]
-        if sum(trap_weights) == 0:
-            trap_weights = [1, 1, 1, 1, 1]  # equal distribution if all weights are zero
+        weight_map = {
+            name: max(0, self.options.trap_weights.value.get(name, 0))
+            for name in BloonsItems.trap_items
+        }
+        trap_names = [n for n, w in weight_map.items() if w > 0]
+        trap_weights = [weight_map[n] for n in trap_names]
+        if not trap_names:
+            trap_count = 0  # all weights zero — skip traps entirely
         for _ in range(trap_count):
             chosen = random.choices(trap_names, weights=trap_weights, k=1)[0]
             self.multiworld.itempool.append(self.create_item(chosen))

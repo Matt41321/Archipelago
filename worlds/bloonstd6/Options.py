@@ -1,4 +1,4 @@
-from Options import Choice, Toggle, Range, DeathLink, PerGameCommonOptions
+from Options import Choice, Toggle, Range, DeathLink, OptionDict, OptionGroup, OptionSet, PerGameCommonOptions
 from dataclasses import dataclass
 
 
@@ -264,7 +264,7 @@ class Goal(Choice):
     How you complete the randomizer. 
     Collecting enough of the "Medal" item will unlock a victory map (marked by the archipelago logo)
 
-    Default: Beat the victory map on the highest available difficulty (Impoppalbe/Chimps)
+    Default: Beat the victory map on the highest available difficulty (Impoppable/Chimps)
     Boss: Defeat a random Boss Bloon event on the victory map.
     Elite Boss: Defeat a random Elite Boss Bloon event on the victory map. 
                 Note: Boss Events are guaranteed to take place on Beginner or Intermediate maps.
@@ -288,64 +288,70 @@ class TrapPercentage(Range):
     default = 0
 
 
-class ModifiedBloonsWeight(Range):
+class TrapWeights(OptionDict):
     """
-    How heavily weighted the trap pool is towards "Modified Bloons" traps.
-    Modified Bloons causes most bloons to gain a random property (Camo, Regrow, Fortified) for next three rounds.
-    """
-
-    display_name = "Modified Bloons Weight"
-    range_start = 0
-    range_end = 100
-    default = 10
-
-
-class FreezeWeight(Range):
-    """
-    How heavily weighted the trap pool is towards "Freeze Trap" traps.
-    Freeze Trap causes all towers to stop attacking for 10 seconds.
+    Specify the weights determining how many copies of each trap item will be in your itempool.
+    If you don't want a specific type of trap, you can set the weight for it to 0.
+    If you set all trap weights to 0, you will get no traps, bypassing the "Trap Percentage" option.
+    For information on what the traps do, check the wiki: https://archipelago.miraheze.org/wiki/Bloons_TD6
     """
 
-    display_name = "Freeze Trap Weight"
-    range_start = 0
-    range_end = 100
-    default = 10
+    display_name = "Trap Weights"
+    valid_keys = frozenset([
+        "Modified Bloons", "Freeze Trap", "Bee Trap", "Speed Up Trap", "Literature Trap",
+    ])
+    default = {
+        "Modified Bloons": 10,
+        "Freeze Trap": 10,
+        "Bee Trap": 10,
+        "Speed Up Trap": 10,
+        "Literature Trap": 10,
+    }
 
 
-class BeeWeight(Range):
+_ALL_MAP_DISPLAY_NAMES = frozenset([
+    "Monkey Meadow", "In The Loop", "Middle Of The Road", "Tinkerton", "Tree Stump",
+    "Town Centre", "One Two Tree", "Scrapyard", "The Cabin", "Resort", "Skates",
+    "Lotus Island", "Candy Falls", "Winter Park", "Carved", "Park Path", "Alpine Run",
+    "Frozen Over", "Cubism", "Four Circles", "Hedge", "End Of The Road", "Logs",
+    "Spa Pits", "Three Mines Around", "Luminous Cove", "Sulfur Springs", "Water Park",
+    "Polyphemus", "Covered Garden", "Quarry", "Quiet Street", "Bloonarius Prime",
+    "Balance", "Encrypted", "Bazaar", "Adora's Temple", "Spring Spring",
+    "Karts N Darts", "Moon Landing", "Haunted", "Downstream", "Firing Range",
+    "Cracked", "Streambed", "Chutes", "Rake", "Spice Islands", "Lost Crevasse",
+    "Ancient Portal", "Castle Revenge", "Dark Path", "Erosion", "Midnight Mansion",
+    "Sunken Columns", "X Factor", "Mesa", "Geared", "Spillway", "Cargo",
+    "Pat's Pond", "Peninsula", "High Finance", "Another Brick", "Off The Coast",
+    "Cornfield", "Underground", "Enchanted Glade", "Last Resort", "Party Parade",
+    "Sunset Gulch", "Mushroom Grotto", "Glacial Trail", "Dark Dungeons", "Sanctuary",
+    "Ravine", "Flooded Valley", "Infernal", "Bloody Puddles", "Workshop", "Quad",
+    "Dark Castle", "Muddy Puddles", "#ouch", "Tricky Tracks",
+])
+
+
+class MapBlacklist(OptionSet):
     """
-    How heavily weighted the trap pool is towards "Bee Trap" traps.
-    Bee Trap sends swarms of bees flying across the screen.
+    Maps to never include in this randomizer, entered by display name.
+    Example: ["Monkey Meadow", "#ouch", "Bloonarius Prime"]
+    If a map appears in both the blacklist and whitelist, the blacklist wins.
     """
 
-    display_name = "Bee Trap Weight"
-    range_start = 0
-    range_end = 100
-    default = 10
+    display_name = "Map Blacklist"
+    valid_keys = _ALL_MAP_DISPLAY_NAMES
+    default = frozenset()
 
 
-class SpeedUpWeight(Range):
+class MapWhitelist(OptionSet):
     """
-    How heavily weighted the trap pool is towards "Speed Up Trap" traps.
-    Speed Up Trap causes all bloons to speed up for the next two rounds.
-    """
-
-    display_name = "Speed Up Trap Weight"
-    range_start = 0
-    range_end = 100
-    default = 10
-
-
-class LiteratureWeight(Range):
-    """
-    How heavily weighted the trap pool is towards "Literature Trap" traps.
-    Literature Trap makes you smart.
+    Maps that are guaranteed to be included in the pool (starting maps or unlockable maps),
+    as long as they fall within the selected difficulty range and are not blacklisted.
+    Other maps outside this list can still fill remaining slots. Entered by display name.
+    Example: ["Monkey Meadow", "Bloonarius Prime", "Infernal"]
     """
 
-    display_name = "Literature Trap Weight"
-    range_start = 0
-    range_end = 100
-    default = 10
+    display_name = "Map Whitelist"
+    valid_keys = _ALL_MAP_DISPLAY_NAMES
+    default = frozenset()
 
 
 @dataclass
@@ -357,6 +363,8 @@ class BloonsTD6Options(PerGameCommonOptions):
     starting_map_count: StartingMaps
     min_map_diff: MinMapDiff
     max_map_diff: MaxMapDiff
+    map_blacklist: MapBlacklist
+    map_whitelist: MapWhitelist
     rando_difficulty: Difficulty
     category_lock: CategoryLock
     starting_monkey: StartingMonkeys
@@ -373,8 +381,45 @@ class BloonsTD6Options(PerGameCommonOptions):
     round_sanity: RoundSanity
     death_link: DeathLink
     trap_percentage: TrapPercentage
-    modified_bloons_weight: ModifiedBloonsWeight
-    freeze_weight: FreezeWeight
-    bee_weight: BeeWeight
-    speed_up_weight: SpeedUpWeight
-    literature_weight: LiteratureWeight
+    trap_weights: TrapWeights
+
+
+btd6_option_groups = [
+    OptionGroup("Goal Options", [
+        Goal,
+        TotalMedals,
+        MedalRequirementPercentage,
+    ]),
+    OptionGroup("Map Options", [
+        Difficulty,
+        TotalMaps,
+        StartingMaps,
+        MinMapDiff,
+        MaxMapDiff,
+        MapBlacklist,
+        MapWhitelist,
+    ]),
+    OptionGroup("Monkey Options", [
+        CategoryLock,
+        StartingMonkeys,
+        StartingMonkeyAmount,
+    ]),
+    OptionGroup("Progression Options", [
+        ProgressiveKnowledge,
+        ProgressivePrices,
+        MaxLevel,
+        StaticXPRequirement,
+        XPCurve,
+    ]),
+    OptionGroup("Extra Locations", [
+        PopTierChecks,
+        Tier3PopRequirement,
+        Tier4PopRequirement,
+        Tier5PopRequirement,
+        RoundSanity,
+    ]),
+    OptionGroup("Trap Options", [
+        TrapPercentage,
+        TrapWeights,
+    ]),
+]

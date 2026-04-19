@@ -135,6 +135,109 @@ class BloonsLocations:
         ],
     }
 
+    display_name_to_id: Dict[str, str] = {
+        "Monkey Meadow": "MonkeyMeadow",
+        "In The Loop": "InTheLoop",
+        "Middle Of The Road": "MiddleOfTheRoad",
+        "Tinkerton": "Tinkerton",
+        "Tree Stump": "TreeStump",
+        "Town Centre": "TownCentre",
+        "One Two Tree": "OneTwoTree",
+        "Scrapyard": "Scrapyard",
+        "The Cabin": "TheCabin",
+        "Resort": "Resort",
+        "Skates": "Skates",
+        "Lotus Island": "LotusIsland",
+        "Candy Falls": "CandyFalls",
+        "Winter Park": "WinterPark",
+        "Carved": "Carved",
+        "Park Path": "ParkPath",
+        "Alpine Run": "AlpineRun",
+        "Frozen Over": "FrozenOver",
+        "Cubism": "Cubism",
+        "Four Circles": "FourCircles",
+        "Hedge": "Hedge",
+        "End Of The Road": "EndOfTheRoad",
+        "Logs": "Logs",
+        "Spa Pits": "SpaPits",
+        "Three Mines Around": "ThreeMinesAround",
+        "Luminous Cove": "LuminousCove",
+        "Sulfur Springs": "SulfurSprings",
+        "Water Park": "WaterPark",
+        "Polyphemus": "Polyphemus",
+        "Covered Garden": "CoveredGarden",
+        "Quarry": "Quarry",
+        "Quiet Street": "QuietStreet",
+        "Bloonarius Prime": "BloonariusPrime",
+        "Balance": "Balance",
+        "Encrypted": "Encrypted",
+        "Bazaar": "Bazaar",
+        "Adora's Temple": "AdorasTemple",
+        "Spring Spring": "SpringSpring",
+        "Karts N Darts": "KartsNDarts",
+        "Moon Landing": "MoonLanding",
+        "Haunted": "Haunted",
+        "Downstream": "Downstream",
+        "Firing Range": "FiringRange",
+        "Cracked": "Cracked",
+        "Streambed": "Streambed",
+        "Chutes": "Chutes",
+        "Rake": "Rake",
+        "Spice Islands": "SpiceIslands",
+        "Lost Crevasse": "LostCrevasse",
+        "Ancient Portal": "AncientPortal",
+        "Castle Revenge": "CastleRevenge",
+        "Dark Path": "DarkPath",
+        "Erosion": "Erosion",
+        "Midnight Mansion": "MidnightMansion",
+        "Sunken Columns": "SunkenColumns",
+        "X Factor": "XFactor",
+        "Mesa": "Mesa",
+        "Geared": "Geared",
+        "Spillway": "Spillway",
+        "Cargo": "Cargo",
+        "Pat's Pond": "PatsPond",
+        "Peninsula": "Peninsula",
+        "High Finance": "HighFinance",
+        "Another Brick": "AnotherBrick",
+        "Off The Coast": "OffTheCoast",
+        "Cornfield": "Cornfield",
+        "Underground": "Underground",
+        "Enchanted Glade": "EnchantedGlade",
+        "Last Resort": "LastResort",
+        "Party Parade": "PartyParade",
+        "Sunset Gulch": "SunsetGulch",
+        "Mushroom Grotto": "MushroomGrotto",
+        "Glacial Trail": "GlacialTrail",
+        "Dark Dungeons": "DarkDungeons",
+        "Sanctuary": "Sanctuary",
+        "Ravine": "Ravine",
+        "Flooded Valley": "FloodedValley",
+        "Infernal": "Infernal",
+        "Bloody Puddles": "BloodyPuddles",
+        "Workshop": "Workshop",
+        "Quad": "Quad",
+        "Dark Castle": "DarkCastle",
+        "Muddy Puddles": "MuddyPuddles",
+        "#ouch": "#ouch",
+        "Tricky Tracks": "TrickyTracks",
+    }
+
+    id_to_display_name: Dict[str, str] = {v: k for k, v in display_name_to_id.items()}
+
+    _normalized_lookup: Dict[str, str] = {
+        k.lower().replace(" ", "").replace("'", ""): v
+        for k, v in display_name_to_id.items()
+    }
+
+    @classmethod
+    def resolve_map_name(cls, name: str) -> str | None:
+        """Convert a user-supplied map name to an internal ID. Returns None if not found."""
+        if name in cls.display_name_to_id:
+            return cls.display_name_to_id[name]
+        normalized = name.lower().replace(" ", "").replace("'", "")
+        return cls._normalized_lookup.get(normalized)
+
     auto_location_groups: Dict[str, set] = {}
 
     def __init__(self) -> None:
