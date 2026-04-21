@@ -1,4 +1,4 @@
-from Options import Choice, Toggle, Range, DeathLink, OptionDict, OptionGroup, OptionSet, PerGameCommonOptions
+from Options import Choice, Toggle, Range, DeathLink, OptionCounter, OptionGroup, OptionSet, PerGameCommonOptions
 from dataclasses import dataclass
 
 
@@ -288,7 +288,16 @@ class TrapPercentage(Range):
     default = 0
 
 
-class TrapWeights(OptionDict):
+_default_trap_weights = {
+    "Modified Bloons": 10,
+    "Freeze Trap": 10,
+    "Bee Trap": 10,
+    "Speed Up Trap": 10,
+    "Literature Trap": 10,
+}
+
+
+class TrapWeights(OptionCounter):
     """
     Specify the weights determining how many copies of each trap item will be in your itempool.
     If you don't want a specific type of trap, you can set the weight for it to 0.
@@ -297,16 +306,11 @@ class TrapWeights(OptionDict):
     """
 
     display_name = "Trap Weights"
-    valid_keys = frozenset([
-        "Modified Bloons", "Freeze Trap", "Bee Trap", "Speed Up Trap", "Literature Trap",
-    ])
-    default = {
-        "Modified Bloons": 10,
-        "Freeze Trap": 10,
-        "Bee Trap": 10,
-        "Speed Up Trap": 10,
-        "Literature Trap": 10,
-    }
+    valid_keys = _default_trap_weights.keys()
+
+    min = 0
+
+    default = _default_trap_weights
 
 
 _ALL_MAP_DISPLAY_NAMES = frozenset([
