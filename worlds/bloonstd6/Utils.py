@@ -157,6 +157,8 @@ class Shared:
         "Corvus",
         "Silas",
     ]
+    pathNames: List[str] = ["TopPath", "MiddlePath", "BottomPath"]
+
     monkeyIDs: List[str] = [
         "DartMonkey",
         "BoomerangMonkey",

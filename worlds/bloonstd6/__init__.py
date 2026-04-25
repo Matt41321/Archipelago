@@ -16,6 +16,7 @@ from .Items import (
     BTD6FillerItem,
     BTD6HeroUnlock,
     BTD6KnowledgeUnlock,
+    BTD6PathUnlock,
     BTD6ProgressiveKnowledge,
     BTD6ProgressivePrices,
     BTD6MapUnlock,
@@ -239,6 +240,8 @@ class BTD6World(World):
             return BTD6HeroUnlock(name, self.bloonsItemData.items[name], self.player)
         if name.endswith("-KUnlock") and name in self.bloonsItemData.items:
             return BTD6KnowledgeUnlock(name, self.bloonsItemData.items[name], self.player)
+        if (name.endswith("-TopPath") or name.endswith("-MiddlePath") or name.endswith("-BottomPath")) and name in self.bloonsItemData.items:
+            return BTD6PathUnlock(name, self.bloonsItemData.items[name], self.player)
 
         map = self.bloonsItemData.items.get(f"{name}-MUnlock")
         monkey = self.bloonsItemData.items.get(f"{name}-TUnlock")
@@ -284,6 +287,12 @@ class BTD6World(World):
             for _ in range(3):
                 self.multiworld.itempool.append(self.create_item(BloonsItems.PROGRESSIVE_PRICES_NAME))
                 item_count += 1
+
+        if self.options.upgrade_sanity.value:
+            for monkey in self.bloonsItemData.monkeyIDs:
+                for path in Shared.pathNames:
+                    self.multiworld.itempool.append(self.create_item(f"{monkey}-{path}"))
+                    item_count += 1
 
         if self.options.progressive_knowledge.value:
             # Progressive mode: 7 items unlock knowledge layer by layer
@@ -566,6 +575,7 @@ class BTD6World(World):
             pop_tier_region = Region("Pop Tiers", self.player, self.multiworld)
             self.multiworld.regions.append(pop_tier_region)
             menu_region.connect(pop_tier_region)
+            upgrade_sanity_on = bool(self.options.upgrade_sanity.value)
             for monkey in self.bloonsItemData.monkeyIDs:
                 if f"{monkey}-Tier3" not in self.bloonsMapData.locations:
                     continue
@@ -582,6 +592,13 @@ class BTD6World(World):
                         self.multiworld.get_location(f"{monkey}-{tier}", self.player),
                         rule=lambda state, m=monkey: state.has(f"{m}-TUnlock", self.player),
                     )
+                if upgrade_sanity_on:
+                    path_items = [f"{monkey}-TopPath", f"{monkey}-MiddlePath", f"{monkey}-BottomPath"]
+                    for tier in ("Tier4", "Tier5"):
+                        add_rule(
+                            self.multiworld.get_location(f"{monkey}-{tier}", self.player),
+                            rule=lambda state, pi=path_items: state.has_from_list(pi, self.player, 1),
+                        )
         # endregion
 
         # region Knowledge Locations
@@ -853,6 +870,7 @@ class BTD6World(World):
             "roundSanity": int(self.options.round_sanity.value),
             "progressivePrices": bool(self.options.progressive_prices.value),
             "categoryLock": bool(self.options.category_lock.value),
+            "upgradeSanity": bool(self.options.upgrade_sanity.value),
             "goal": int(self.options.goal.value),
             "deathLink": bool(self.options.death_link.value),
             # Fields used by the Universal Tracker to reconstruct the exact same world.

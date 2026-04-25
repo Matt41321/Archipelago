@@ -70,6 +70,13 @@ class BTD6TrapItem(Item):
         super().__init__(name, ItemClassification.trap, code, player)
 
 
+class BTD6PathUnlock(Item):
+    game: str = "Bloons TD6"
+
+    def __init__(self, name: str, code: Optional[int], player: int):
+        super().__init__(name, ItemClassification.progression, code, player)
+
+
 class BTD6FillerItem(Item):
     game: str = "Bloons TD6"
 
@@ -210,6 +217,10 @@ class BloonsItems:
         for name in Shared.knowledgeIDs:
             self.items[f"{name}-KUnlock"] = index
             index += 1
+        for monkey in self.monkeyIDs:
+            for path in Shared.pathNames:
+                self.items[f"{monkey}-{path}"] = index
+                index += 1
 
         self.auto_item_groups["maps"] = set(
             names for names in self.items.keys() if names.endswith("-MUnlock")
@@ -220,4 +231,8 @@ class BloonsItems:
         self.auto_item_groups["knowledge"] = set(
             name for name in self.items.keys() if name.endswith("-KUnlock")
         ) | {self.PROGRESSIVE_KNOWLEDGE_NAME}
+        self.auto_item_groups["paths"] = set(
+            name for name in self.items.keys()
+            if name.endswith("-TopPath") or name.endswith("-MiddlePath") or name.endswith("-BottomPath")
+        )
 

@@ -220,6 +220,20 @@ class Tier5PopRequirement(Range):
     default = 10000
 
 
+class UpgradeSanity(Toggle):
+    """
+    {Experimental - logic does not account for this}
+    False/Off: Monkey upgrade paths are freely available as normal.
+    True/On:  Each monkey's three upgrade paths (Top, Middle, Bottom) become items
+              in the multiworld pool. Receiving e.g. "DartMonkey-MiddlePath" unlocks
+              Dart Monkey's tier 4 and 5 upgrades on the middle path.
+              Tiers 1-3 remain freely purchasable on all paths.
+              {Adds 75 items to the pool} 
+    """
+
+    display_name = "Upgrade Sanity"
+
+
 class RoundSanity(Range):
     """
     Adds location checks for completing rounds on any map.
@@ -382,6 +396,7 @@ class BloonsTD6Options(PerGameCommonOptions):
     tier3_pop_requirement: Tier3PopRequirement
     tier4_pop_requirement: Tier4PopRequirement
     tier5_pop_requirement: Tier5PopRequirement
+    upgrade_sanity: UpgradeSanity
     round_sanity: RoundSanity
     death_link: DeathLink
     trap_percentage: TrapPercentage
@@ -420,6 +435,7 @@ btd6_option_groups = [
         Tier3PopRequirement,
         Tier4PopRequirement,
         Tier5PopRequirement,
+        UpgradeSanity,
         RoundSanity,
     ]),
     OptionGroup("Trap Options", [
