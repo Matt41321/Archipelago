@@ -497,16 +497,24 @@ class BTD6World(World):
             set_map_rules(self, name)
 
             # Handle Round Sanity Checks for this map
+            round_check_set: set[int] = set()
             if self.options.round_sanity.value > 0:
                 interval = self.options.round_sanity.value
                 r = interval
                 while r <= 100:
-                    loc_name = f"{name}-Round {r}"
-                    region.add_locations(
-                        {loc_name: self.bloonsMapData.locations[loc_name]}
-                    )
-                    set_round_rule(self, name, r)
+                    round_check_set.add(r)
                     r += interval
+            for r_str in self.options.custom_round_checks.value:
+                try:
+                    round_check_set.add(int(r_str))
+                except ValueError:
+                    pass
+            for r in sorted(round_check_set):
+                loc_name = f"{name}-Round {r}"
+                region.add_locations(
+                    {loc_name: self.bloonsMapData.locations[loc_name]}
+                )
+                set_round_rule(self, name, r)
         # endregion
 
         # region Hero Locations
@@ -868,6 +876,7 @@ class BTD6World(World):
             "tier5PopRequirement": int(self.options.tier5_pop_requirement.value),
             "progressiveKnowledge": bool(self.options.progressive_knowledge.value),
             "roundSanity": int(self.options.round_sanity.value),
+            "customRoundChecks": sorted(int(r) for r in self.options.custom_round_checks.value),
             "progressivePrices": bool(self.options.progressive_prices.value),
             "categoryLock": bool(self.options.category_lock.value),
             "upgradeSanity": bool(self.options.upgrade_sanity.value),

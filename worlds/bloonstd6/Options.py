@@ -251,6 +251,19 @@ class RoundSanity(Range):
     default = 0
 
 
+class CustomRoundChecks(OptionSet):
+    """
+    Specify exact rounds to send checks on, in addition to or instead of the Round Sanity interval.
+    Enter round numbers between 1 and 100.
+    Example: [98, 95, 93, 78]
+    If Round Sanity is also set, both sets of checks are included.
+    """
+
+    display_name = "Custom Round Checks"
+    valid_keys = frozenset(str(i) for i in range(1, 101))
+    default = frozenset()
+
+
 class ProgressivePrices(Toggle):
     """
     False/Off: Tower and upgrade costs behave normally based on the selected difficulty.
@@ -398,6 +411,7 @@ class BloonsTD6Options(PerGameCommonOptions):
     tier5_pop_requirement: Tier5PopRequirement
     upgrade_sanity: UpgradeSanity
     round_sanity: RoundSanity
+    custom_round_checks: CustomRoundChecks
     death_link: DeathLink
     trap_percentage: TrapPercentage
     trap_weights: TrapWeights
@@ -437,6 +451,7 @@ btd6_option_groups = [
         Tier5PopRequirement,
         UpgradeSanity,
         RoundSanity,
+        CustomRoundChecks,
     ]),
     OptionGroup("Trap Options", [
         TrapPercentage,
