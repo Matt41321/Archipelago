@@ -183,7 +183,7 @@ class BTD6World(World):
         # Sort pool for deterministic random.sample regardless of set iteration order
         pool = sorted(self.options.mode_pool.value) or ["Easy", "Medium", "Hard", "Impoppable"]
         max_n = min(int(self.options.modes_per_map.value), len(pool))
-        randomise_count = bool(self.options.random_modes_per_map.value)
+        randomise_count = bool(self.options.random_mode_amount_per_map.value)
         self.map_modes: Dict[str, List[str]] = {}
         for map_name in self.starting_maps + self.included_maps:
             n = self.random.randint(1, max_n) if randomise_count else max_n
