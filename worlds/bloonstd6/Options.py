@@ -318,7 +318,7 @@ class Goal(Choice):
     How you complete the randomizer. 
     Collecting enough of the "Medal" item will unlock a victory map (marked by the archipelago logo)
 
-    Default: Beat the victory map on the highest available difficulty (Impoppable/Chimps)
+    Default: Beat the victory map on the highest available difficulty in the pool.
     Boss: Defeat a random Boss Bloon event on the victory map.
     Elite Boss: Defeat a random Elite Boss Bloon event on the victory map. 
                 Note: Boss Events are guaranteed to take place on Beginner or Intermediate maps.
