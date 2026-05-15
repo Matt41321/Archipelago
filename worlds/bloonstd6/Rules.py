@@ -366,49 +366,20 @@ def _make_rule(mode: str, tier: str, player: int, category_lock: bool) -> Callab
 
 def _apply_to_all_active_modes(world: "BTD6World", map_name: str, rule: Callable) -> None:
     """Add rule to every active mode location for this map."""
-    from .Options import Difficulty
     player = world.player
-    difficulty = world.options.rando_difficulty.value
-
-    for mode in ("Easy", "Medium", "Hard", "Impoppable"):
+    for mode in world.map_modes.get(map_name, []):
         add_rule(world.multiworld.get_location(f"{map_name}-{mode}", player), rule)
-
-    if difficulty >= Difficulty.option_Advanced:
-        add_rule(world.multiworld.get_location(f"{map_name}-Chimps", player), rule)
-
-    if difficulty == Difficulty.option_Expert:
-        for mode in ("Deflation", "Apopalypse", "Reverse",
-                     "DoubleMoabHealth", "HalfCash", "AlternateBloonsRounds"):
-            add_rule(world.multiworld.get_location(f"{map_name}-{mode}", player), rule)
 
 
 def set_map_rules(world: "BTD6World", map_name: str) -> None:
-    from .Options import Difficulty
-
     player = world.player
     category_lock = bool(world.options.category_lock.value)
-    difficulty = world.options.rando_difficulty.value
     tier = _get_map_tier(world, map_name)
+    map_modes = world.map_modes.get(map_name, [])
 
-    for mode in ("Easy", "Medium", "Hard", "Impoppable"):
+    for mode in map_modes:
         rule = _make_rule(mode, tier, player, category_lock)
-        add_rule(
-            world.multiworld.get_location(f"{map_name}-{mode}", player),
-            rule,
-        )
-
-    if difficulty >= Difficulty.option_Advanced:
-        rule = _make_rule("Chimps", tier, player, category_lock)
-        add_rule(
-            world.multiworld.get_location(f"{map_name}-Chimps", player),
-            rule,
-        )
-
-    # Expert alt modes
-    if difficulty == Difficulty.option_Expert:
-        for mode in ("Deflation", "Apopalypse", "Reverse",
-                     "DoubleMoabHealth", "HalfCash", "AlternateBloonsRounds"):
-            rule = _make_rule(mode, tier, player, category_lock)
+        if rule is not None:
             add_rule(
                 world.multiworld.get_location(f"{map_name}-{mode}", player),
                 rule,
@@ -418,7 +389,7 @@ def set_map_rules(world: "BTD6World", map_name: str) -> None:
         water_rule = lambda state, p=player, cl=category_lock: has_water_tower(state, p, cl)
         _apply_to_all_active_modes(world, map_name, water_rule)
 
-    if difficulty >= Difficulty.option_Advanced and map_name in _EXPERT_CHIMPS_STARTS:
+    if "Chimps" in map_modes and map_name in _EXPERT_CHIMPS_STARTS:
         strategies = _EXPERT_CHIMPS_STARTS[map_name]
         start_rule = lambda state, p=player, cl=category_lock, s=strategies: has_chimps_start(state, p, cl, s)
         add_rule(
@@ -427,8 +398,8 @@ def set_map_rules(world: "BTD6World", map_name: str) -> None:
         )
 
     if (
-        tier in ("advanced", "expert")
-        and difficulty >= Difficulty.option_Advanced
+        "Chimps" in map_modes
+        and tier in ("advanced", "expert")
         and world.options.progressive_prices.value
     ):
         prices_rule = lambda state, p=player: state.has("Progressive Prices", p, 1)

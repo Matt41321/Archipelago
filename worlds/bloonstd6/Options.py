@@ -14,7 +14,6 @@ class StartingMaps(Range):
 class TotalMaps(Range):
     """
     The number of maps to be included (not including starting maps).
-    This determines the number of \"Medal\" Items that are in the game in relation to your Randomizer Difficulty.
     """
 
     range_start = 10
@@ -55,21 +54,49 @@ class MaxMapDiff(Range):
     display_name = "Maximum Map Difficulty"
 
 
-class Difficulty(Choice):
+class ModePool(OptionSet):
     """
-    The difficulty of the randomizer.
+    Which difficulty/mode checks are eligible to be assigned to maps.
+    Each included map will randomly draw `modes_per_map` modes from this pool.
 
-    Basic: The Easy, Medium, Hard, and Impoppable Medals all send checks.
-    Advanced: The Easy, Medium, Hard, Impoppable, and Chimps Medals all send checks.
-    Expert: All Medals send checks.
-    Note: Completing milestone rounds on higher difficulties will send checks related to the lower difficulties (i.e. completing round 60 on Impoppable will send the Medium check for that map)
+    Available modes: Easy, Medium, Hard, Impoppable, Chimps,
+    PrimaryOnly, MilitaryOnly, MagicOnly,
+    Deflation, Apopalypse, Reverse, DoubleMoabHealth, HalfCash, AlternateBloonsRounds
+
+    Note: Completing milestone rounds on higher difficulties will still send checks for
+    lower difficulties assigned to that map (e.g. round 60 on Impoppable sends Medium
+    if Medium is in that map's pool).
     """
 
-    display_name = "Difficulty"
-    option_Basic = 4
-    option_Advanced = 5
-    option_Expert = 14
+    display_name = "Mode Pool"
+    valid_keys = frozenset({
+        "Easy", "Medium", "Hard", "Impoppable", "Chimps",
+        "PrimaryOnly", "MilitaryOnly", "MagicOnly",
+        "Deflation", "Apopalypse", "Reverse",
+        "DoubleMoabHealth", "HalfCash", "AlternateBloonsRounds",
+    })
+    default = frozenset({"Easy", "Medium", "Hard", "Impoppable"})
+
+
+class ModesPerMap(Range):
+    """
+    How many modes from the Mode Pool are randomly assigned as checks for each map.
+    If this exceeds the pool size, it is capped at the pool size and every mode in the pool will be on every map.
+    """
+
+    display_name = "Modes Per Map"
+    range_start = 1
+    range_end = 14
     default = 4
+
+
+class RandomModeAmountPerMap(Toggle):
+    """
+    When enabled, each map receives a random number of modes between 1 and Modes Per Map
+    (capped at the pool size). Every map may have a different count.
+    """
+
+    display_name = "Random Mode Amount Per Map"
 
 
 class TotalMedals(Range):
@@ -390,13 +417,15 @@ class BloonsTD6Options(PerGameCommonOptions):
     goal: Goal
     total_medals: TotalMedals
     medalreq: MedalRequirementPercentage
+    mode_pool: ModePool
+    modes_per_map: ModesPerMap
+    random_mode_amount_per_map: RandomModeAmountPerMap
     total_maps: TotalMaps
     starting_map_count: StartingMaps
     min_map_diff: MinMapDiff
     max_map_diff: MaxMapDiff
     map_blacklist: MapBlacklist
     map_whitelist: MapWhitelist
-    rando_difficulty: Difficulty
     category_lock: CategoryLock
     starting_monkey: StartingMonkeys
     num_start_monkey: StartingMonkeyAmount
@@ -424,7 +453,9 @@ btd6_option_groups = [
         MedalRequirementPercentage,
     ]),
     OptionGroup("Map Options", [
-        Difficulty,
+        ModePool,
+        ModesPerMap,
+        RandomModeAmountPerMap,
         TotalMaps,
         StartingMaps,
         MinMapDiff,

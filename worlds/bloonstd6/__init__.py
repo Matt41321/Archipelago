@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Dict, List, Type
 from Options import PerGameCommonOptions
 from worlds.generic.Rules import add_rule, set_rule
 
-from .Options import BloonsTD6Options, Difficulty, btd6_option_groups
+from .Options import BloonsTD6Options, btd6_option_groups
 from .Rules import set_map_rules, set_round_rule, has_economy, STARTING_DAMAGE_TOWERS
 from .Locations import BTD6Hero, BTD6Knowledge, BTD6Map, BTD6Medal, BloonsLocations
 from .Items import (
@@ -174,6 +174,22 @@ class BTD6World(World):
             # Put the rest of the monkeys into storage for item generation
             self.remaining_monkeys.extend(available_towers)
 
+        # Hardness order for determining the goal mode (hardest first)
+        _HARDNESS_ORDER = [
+            "Chimps", "Impoppable", "HalfCash", "AlternateBloonsRounds", "DoubleMoabHealth", "MagicOnly", "Hard",
+            "Apopalypse", "MilitaryOnly", "Reverse", "Medium",
+            "Deflation", "PrimaryOnly", "Easy",
+        ]
+        # Sort pool for deterministic random.sample regardless of set iteration order
+        pool = sorted(self.options.mode_pool.value) or ["Easy", "Medium", "Hard", "Impoppable"]
+        max_n = min(int(self.options.modes_per_map.value), len(pool))
+        randomise_count = bool(self.options.random_modes_per_map.value)
+        self.map_modes: Dict[str, List[str]] = {}
+        for map_name in self.starting_maps + self.included_maps:
+            n = self.random.randint(1, max_n) if randomise_count else max_n
+            self.map_modes[map_name] = self.random.sample(pool, n)
+        self.goal_mode = next((m for m in _HARDNESS_ORDER if m in pool), "Easy")
+
     def _load_from_passthrough(self, passthrough: Dict[str, Any]) -> None:
         """Restore generate_early state from slot data (used by Universal Tracker)."""
         self.victory_map_name = passthrough["victoryLocation"]
@@ -183,6 +199,8 @@ class BTD6World(World):
         self.starting_hero = passthrough["startingHero"]
         self.available_heroes = list(passthrough["availableHeroes"])
         self.remaining_categories = list(passthrough.get("remainingCategories", []))
+        self.map_modes = {k: list(v) for k, v in passthrough.get("mapModes", {}).items()}
+        self.goal_mode = passthrough.get("goalMode", "Impoppable")
         # Remaining monkeys = all towers not chosen as starters
         self.remaining_monkeys = [
             t for t in self.bloonsItemData.monkeyIDs
@@ -377,119 +395,67 @@ class BTD6World(World):
                 BTD6Map,
             )
 
-            # Handle Mode Based Checks
-            region.add_locations(
-                {
-                    name + "-Easy": self.bloonsMapData.locations[name + "-Easy"],
-                    name + "-Medium": self.bloonsMapData.locations[name + "-Medium"],
-                    name + "-Hard": self.bloonsMapData.locations[name + "-Hard"],
-                    name
-                    + "-Impoppable": self.bloonsMapData.locations[name + "-Impoppable"],
-                },
-                BTD6Medal,
-            )
-            if self.options.rando_difficulty.value >= Difficulty.option_Advanced:
+            # Handle Mode Based Checks — only add modes assigned to this map
+            for mode in self.map_modes[name]:
                 region.add_locations(
-                    {name + "-Chimps": self.bloonsMapData.locations[name + "-Chimps"]},
+                    {f"{name}-{mode}": self.bloonsMapData.locations[f"{name}-{mode}"]},
                     BTD6Medal,
                 )
-            if self.options.rando_difficulty.value == Difficulty.option_Expert:
-                region.add_locations(
-                    {
-                        name
-                        + "-PrimaryOnly": self.bloonsMapData.locations[
-                            name + "-PrimaryOnly"
-                        ],
-                        name
-                        + "-Deflation": self.bloonsMapData.locations[
-                            name + "-Deflation"
-                        ],
-                        name
-                        + "-MilitaryOnly": self.bloonsMapData.locations[
-                            name + "-MilitaryOnly"
-                        ],
-                        name
-                        + "-Apopalypse": self.bloonsMapData.locations[
-                            name + "-Apopalypse"
-                        ],
-                        name
-                        + "-Reverse": self.bloonsMapData.locations[name + "-Reverse"],
-                        name
-                        + "-MagicOnly": self.bloonsMapData.locations[
-                            name + "-MagicOnly"
-                        ],
-                        name
-                        + "-DoubleMoabHealth": self.bloonsMapData.locations[
-                            name + "-DoubleMoabHealth"
-                        ],
-                        name
-                        + "-HalfCash": self.bloonsMapData.locations[name + "-HalfCash"],
-                        name
-                        + "-AlternateBloonsRounds": self.bloonsMapData.locations[
-                            name + "-AlternateBloonsRounds"
-                        ],
-                    },
-                    BTD6Medal,
-                )
+
+            if "PrimaryOnly" in self.map_modes[name]:
                 if self.options.category_lock.value:
                     add_rule(
                         self.multiworld.get_location(f"{name}-PrimaryOnly", self.player),
                         rule=lambda state: state.has("Primary Monkeys", self.player),
-                    )
-                    add_rule(
-                        self.multiworld.get_location(f"{name}-MilitaryOnly", self.player),
-                        rule=lambda state: state.has("Military Monkeys", self.player),
-                    )
-                    add_rule(
-                        self.multiworld.get_location(f"{name}-MagicOnly", self.player),
-                        rule=lambda state: state.has("Magic Monkeys", self.player),
                     )
                 else:
                     add_rule(
                         self.multiworld.get_location(f"{name}-PrimaryOnly", self.player),
                         rule=lambda state: state.has_from_list(
                             {
-                                "DartMonkey-TUnlock",
-                                "BoomerangMonkey-TUnlock",
-                                "BombShooter-TUnlock",
-                                "TackShooter-TUnlock",
-                                "IceMonkey-TUnlock",
-                                "GlueGunner-TUnlock",
-                                "Desperado-TUnlock"
+                                "DartMonkey-TUnlock", "BoomerangMonkey-TUnlock",
+                                "BombShooter-TUnlock", "TackShooter-TUnlock",
+                                "IceMonkey-TUnlock", "GlueGunner-TUnlock",
+                                "Desperado-TUnlock",
                             },
-                            self.player,
-                            2,
+                            self.player, 2,
                         ),
                     )
+            if "MilitaryOnly" in self.map_modes[name]:
+                if self.options.category_lock.value:
+                    add_rule(
+                        self.multiworld.get_location(f"{name}-MilitaryOnly", self.player),
+                        rule=lambda state: state.has("Military Monkeys", self.player),
+                    )
+                else:
                     add_rule(
                         self.multiworld.get_location(f"{name}-MilitaryOnly", self.player),
                         rule=lambda state: state.has_from_list(
                             {
-                                "SniperMonkey-TUnlock",
-                                "MonkeySub-TUnlock",
-                                "MonkeyBuccaneer-TUnlock",
-                                "MonkeyAce-TUnlock",
-                                "HeliPilot-TUnlock",
-                                "MortarMonkey-TUnlock",
+                                "SniperMonkey-TUnlock", "MonkeySub-TUnlock",
+                                "MonkeyBuccaneer-TUnlock", "MonkeyAce-TUnlock",
+                                "HeliPilot-TUnlock", "MortarMonkey-TUnlock",
                                 "DartlingGunner-TUnlock",
                             },
-                            self.player,
-                            2,
+                            self.player, 2,
                         ),
                     )
+            if "MagicOnly" in self.map_modes[name]:
+                if self.options.category_lock.value:
+                    add_rule(
+                        self.multiworld.get_location(f"{name}-MagicOnly", self.player),
+                        rule=lambda state: state.has("Magic Monkeys", self.player),
+                    )
+                else:
                     add_rule(
                         self.multiworld.get_location(f"{name}-MagicOnly", self.player),
                         rule=lambda state: state.has_from_list(
                             {
-                                "WizardMonkey-TUnlock",
-                                "SuperMonkey-TUnlock",
-                                "NinjaMonkey-TUnlock",
-                                "Alchemist-TUnlock",
-                                "Druid-TUnlock",
-                                "Mermonkey-TUnlock",
+                                "WizardMonkey-TUnlock", "SuperMonkey-TUnlock",
+                                "NinjaMonkey-TUnlock", "Alchemist-TUnlock",
+                                "Druid-TUnlock", "Mermonkey-TUnlock",
                             },
-                            self.player,
-                            2,
+                            self.player, 2,
                         ),
                     )
 
@@ -528,25 +494,27 @@ class BTD6World(World):
         # endregion
 
         # region Level Locations
-        # Levels are split into 7 XP-sphere sub-regions so the AP solver spreads items
+        # Levels are split into 9 XP-sphere sub-regions so the AP solver spreads items
         # across the full level range rather than dumping everything into sphere 1.
         #
         # Cumulative XP thresholds (raw XP):
-        #   Sphere 1 : <  1 000 000
-        #   Sphere 2 :  1 000 000 –  5 000 000
-        #   Sphere 3 :  5 000 000 – 15 000 000
-        #   Sphere 4 : 15 000 000 – 30 000 000
-        #   Sphere 5 :  30 000 000 – 60 000 000
-        #   Sphere 6 :  60 000 000 – 120 000 000
-        #   Sphere 7 : 120 000 000 – 180 000 000
-        XP_THRESHOLDS = [0, 1_000_000, 5_000_000, 15_000_000, 30_000_000, 60_000_000, 120_000_000]
+        #   Sphere 1 : <250 000
+        #   Sphere 2 : 250 000 – 500 000
+        #   Sphere 3 : 500 000 – 1 000 000
+        #   Sphere 4 : 1 000 000 – 5 000 000
+        #   Sphere 5 : 5 000 000 – 15 000 000
+        #   Sphere 6 : 15 000 000 – 30 000 000
+        #   Sphere 7 : 30 000 000 – 60 000 000
+        #   Sphere 8 : 60 000 000 – 120 000 000
+        #   Sphere 9 : 120 000 000+
+        XP_THRESHOLDS = [0, 250_000, 500_000, 1_000_000, 5_000_000, 15_000_000, 30_000_000, 60_000_000, 120_000_000]
 
-        SPHERE_MEDAL_PCTS = [0, 35, 50, 63, 75, 85, 93]
+        SPHERE_MEDAL_PCTS = [0, 10, 20, 35, 50, 63, 75, 85, 93]
 
         total_medals = self.options.total_medals.value
 
         xp_sphere_regions = []
-        for s in range(7):
+        for s in range(9):
             sr = Region(f"XP Sphere {s + 1}", self.player, self.multiworld)
             self.multiworld.regions.append(sr)
             xp_sphere_regions.append(sr)
@@ -600,6 +568,8 @@ class BTD6World(World):
                         self.multiworld.get_location(f"{monkey}-{tier}", self.player),
                         rule=lambda state, m=monkey: state.has(f"{m}-TUnlock", self.player),
                     )
+                # When upgrade_sanity is on, T4/T5 require at least one path item —
+                # without a path the player can't buy T4/T5 upgrades to accumulate pops.
                 if upgrade_sanity_on:
                     path_items = [f"{monkey}-TopPath", f"{monkey}-MiddlePath", f"{monkey}-BottomPath"]
                     for tier in ("Tier4", "Tier5"):
@@ -611,231 +581,19 @@ class BTD6World(World):
 
         # region Knowledge Locations
         if not self.options.progressive_knowledge.value:
-            # Original mode: individual knowledge nodes as locations gated by their own items
             knowledge_region = Region("Knowledge Tree", self.player, self.multiworld)
             self.multiworld.regions.append(knowledge_region)
             menu_region.connect(knowledge_region)
 
-            primary_region = Region("Primary Knowledge", self.player, self.multiworld)
-            military_region = Region("Military Knowledge", self.player, self.multiworld)
-            magic_region = Region("Magic Knowledge", self.player, self.multiworld)
-            support_region = Region("Support Knowledge", self.player, self.multiworld)
-            heroes_region = Region("Hero Knowledge", self.player, self.multiworld)
-            powers_region = Region("Powers Region", self.player, self.multiworld)
-
-            self.multiworld.regions += [
-                primary_region, military_region, magic_region,
-                support_region, heroes_region, powers_region,
-            ]
-
-            knowledge_region.connect(primary_region)
-            knowledge_region.connect(military_region)
-            knowledge_region.connect(magic_region)
-            knowledge_region.connect(support_region)
-            knowledge_region.connect(heroes_region)
-            knowledge_region.connect(powers_region)
-
-            knowledge_regions: List[Region] = []
             for kname in Shared.knowledgeIDs:
-                region = Region(kname, self.player, self.multiworld)
-                region.add_locations(
+                knowledge_region.add_locations(
                     {kname + "-Tree": self.bloonsMapData.locations[f"{kname}-Tree"]},
                     BTD6Knowledge,
                 )
-                knowledge_regions.append(region)
-
-            self.multiworld.regions += knowledge_regions
-
-            def knowledge_connection(parent_region: Region | int, knowledge_id: int):
-                if type(parent_region) is int:
-                    region = knowledge_regions[parent_region]
-                else:
-                    region = parent_region
-                region.connect(
-                    knowledge_regions[knowledge_id],
-                    rule=lambda state, place=Shared.knowledgeIDs[knowledge_id] + "-KUnlock": state.has(place, self.player),
+                add_rule(
+                    self.multiworld.get_location(kname + "-Tree", self.player),
+                    rule=lambda state, k=kname: state.has(k + "-KUnlock", self.player),
                 )
-
-            # Primary Layer 1
-            knowledge_connection(primary_region, 0)
-            knowledge_connection(primary_region, 1)
-            knowledge_connection(primary_region, 2)
-            # Primary Layer 2
-            knowledge_connection(0, 4)
-            knowledge_connection(4, 3)
-            knowledge_connection(0, 5)
-            knowledge_connection(1, 6)
-            knowledge_connection(1, 7)
-            knowledge_connection(2, 8)
-            # Primary Layer 3
-            knowledge_connection(3, 9)
-            knowledge_connection(4, 10)
-            knowledge_connection(5, 11)
-            knowledge_connection(6, 12)
-            knowledge_connection(7, 13)
-            knowledge_connection(13, 16)
-            knowledge_connection(8, 14)
-            knowledge_connection(8, 15)
-            # Primary Layer 4
-            knowledge_connection(10, 17)
-            knowledge_connection(11, 18)
-            knowledge_connection(13, 19)
-            knowledge_connection(14, 20)
-            knowledge_connection(18, 21)
-            knowledge_connection(19, 21)
-            # Primary Layer 5
-            knowledge_connection(17, 22)
-            knowledge_connection(17, 23)
-            knowledge_connection(18, 24)
-            knowledge_connection(12, 25)
-            knowledge_connection(19, 26)
-            knowledge_connection(26, 28)
-            knowledge_connection(20, 27)
-            # Primary Layer 6
-            knowledge_connection(24, 29)
-            knowledge_connection(27, 30)
-            knowledge_connection(29, 31)
-            knowledge_connection(30, 31)
-            # Military Layer 1
-            knowledge_connection(military_region, 32)
-            knowledge_connection(military_region, 33)
-            knowledge_connection(military_region, 34)
-            knowledge_connection(military_region, 35)
-            # Military Layer 2
-            knowledge_connection(32, 36)
-            knowledge_connection(33, 37)
-            knowledge_connection(34, 38)
-            # Military Layer 3
-            knowledge_connection(military_region, 39)
-            knowledge_connection(32, 40)
-            knowledge_connection(36, 41)
-            knowledge_connection(37, 42)
-            knowledge_connection(33, 43)
-            knowledge_connection(38, 44)
-            knowledge_connection(35, 45)
-            # Military Layer 4
-            knowledge_connection(40, 46)
-            knowledge_connection(41, 47)
-            knowledge_connection(42, 48)
-            knowledge_connection(39, 49)
-            knowledge_connection(45, 50)
-            # Military Layer 5
-            knowledge_connection(46, 56)
-            knowledge_connection(47, 56)
-            knowledge_connection(48, 52)
-            knowledge_connection(52, 55)
-            knowledge_connection(43, 51)
-            knowledge_connection(49, 54)
-            knowledge_connection(44, 53)
-            # Military Layer 6
-            knowledge_connection(56, 57)
-            knowledge_connection(47, 58)
-            knowledge_connection(51, 59)
-            knowledge_connection(59, 60)
-            knowledge_connection(52, 60)
-            # Military Layer 7
-            knowledge_connection(57, 61)
-            knowledge_connection(53, 61)
-            # Magic Layer 1
-            knowledge_connection(magic_region, 62)
-            knowledge_connection(magic_region, 64)
-            knowledge_connection(magic_region, 63)
-            # Magic Layer 2
-            knowledge_connection(62, 65)
-            knowledge_connection(62, 66)
-            knowledge_connection(64, 67)
-            knowledge_connection(63, 68)
-            knowledge_connection(68, 69)
-            # Magic Layer 3
-            knowledge_connection(65, 70)
-            knowledge_connection(66, 71)
-            knowledge_connection(67, 72)
-            knowledge_connection(68, 73)
-            knowledge_connection(67, 78)
-            knowledge_connection(63, 78)
-            # Magic Layer 4
-            knowledge_connection(71, 74)
-            knowledge_connection(72, 77)
-            knowledge_connection(73, 76)
-            knowledge_connection(78, 75)
-            # Magic Layer 5
-            knowledge_connection(77, 81)
-            knowledge_connection(74, 80)
-            knowledge_connection(70, 79)
-            # Magic Layer 6
-            knowledge_connection(79, 83)
-            knowledge_connection(81, 83)
-            knowledge_connection(75, 82)
-            # Support Layer 1
-            knowledge_connection(support_region, 84)
-            knowledge_connection(support_region, 85)
-            # Support Layer 2
-            knowledge_connection(84, 86)
-            knowledge_connection(84, 87)
-            knowledge_connection(85, 88)
-            # Support Layer 3
-            knowledge_connection(86, 90)
-            knowledge_connection(87, 91)
-            knowledge_connection(85, 92)
-            knowledge_connection(support_region, 89)
-            # Support Layer 4
-            knowledge_connection(90, 94)
-            knowledge_connection(91, 95)
-            knowledge_connection(92, 97)
-            knowledge_connection(88, 93)
-            knowledge_connection(89, 96)
-            # Support Layer 5
-            knowledge_connection(94, 98)
-            knowledge_connection(95, 103)
-            knowledge_connection(97, 102)
-            knowledge_connection(93, 99)
-            knowledge_connection(96, 100)
-            knowledge_connection(96, 101)
-            # Support Layer 6
-            knowledge_connection(98, 104)
-            knowledge_connection(100, 105)
-            # Heroes Layer 1
-            knowledge_connection(heroes_region, 106)
-            knowledge_connection(heroes_region, 107)
-            knowledge_connection(heroes_region, 108)
-            # Heroes Layer 2
-            knowledge_connection(106, 109)
-            knowledge_connection(107, 110)
-            # Heroes Layer 3
-            knowledge_connection(109, 111)
-            knowledge_connection(110, 112)
-            knowledge_connection(108, 113)
-            # Heroes Layer 4
-            knowledge_connection(111, 114)
-            knowledge_connection(112, 114)
-            # Heroes Layer 5
-            knowledge_connection(114, 115)
-            knowledge_connection(113, 116)
-            # Heroes Layer 6
-            knowledge_connection(115, 117)
-            knowledge_connection(116, 118)
-            # Powers Layer 1
-            knowledge_connection(powers_region, 119)
-            knowledge_connection(powers_region, 120)
-            knowledge_connection(powers_region, 121)
-            # Powers Layer 2
-            knowledge_connection(119, 122)
-            knowledge_connection(120, 123)
-            knowledge_connection(121, 124)
-            # Powers Layer 3
-            knowledge_connection(122, 125)
-            knowledge_connection(123, 126)
-            knowledge_connection(124, 132)
-            knowledge_connection(126, 132)
-            # Powers Layer 4
-            knowledge_connection(125, 129)
-            knowledge_connection(126, 127)
-            knowledge_connection(132, 128)
-            # Powers Layer 5
-            knowledge_connection(128, 130)
-            knowledge_connection(128, 131)
-            # Powers Layer 6
-            knowledge_connection(130, 133)
         else:
             # Progressive mode: knowledge is applied automatically in-game when
             # "Progressive Knowledge" items are received. No Tree locations exist —
@@ -869,7 +627,8 @@ class BTD6World(World):
             "xpCurve": bool(self.options.xp_curve.value),
             "staticXPReq": int(self.options.static_req.value),
             "maxLevel": int(self.options.max_level.value),
-            "difficulty": int(self.options.rando_difficulty.value),
+            "mapModes": {k: list(v) for k, v in self.map_modes.items()},
+            "goalMode": self.goal_mode,
             "popTierChecks": bool(self.options.pop_tier_checks.value),
             "tier3PopRequirement": int(self.options.tier3_pop_requirement.value),
             "tier4PopRequirement": int(self.options.tier4_pop_requirement.value),

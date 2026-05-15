@@ -288,18 +288,35 @@ class BloonsLocations:
                 self.locations[f"{map_name}-Round {i}"] = index
                 index += 1
 
-        self.auto_location_groups["knowledge"] = set(
+        self.auto_location_groups["Knowledge"] = set(
             name for name in self.locations.keys() if name.endswith("-Tree")
         )
+        self.auto_location_groups["Heroes"] = set(Shared.heroIDs)
         self.auto_location_groups["poptiers"] = set(
             name for name in self.locations.keys() if name.endswith(("-Tier3", "-Tier4", "-Tier5"))
         )
-        self.auto_location_groups["level"] = set(
+        self.auto_location_groups["Level"] = set(
             name for name in self.locations.keys() if name.startswith("Level ")
         )
-        self.auto_location_groups["rounds"] = set(
+        self.auto_location_groups["Rounds"] = set(
             name for name in self.locations.keys() if "-Round " in name
         )
+
+        for mode in (
+            "Easy", "Medium", "Hard", "Impoppable", "Chimps",
+            "PrimaryOnly", "MilitaryOnly", "MagicOnly",
+            "Deflation", "Apopalypse", "Reverse",
+            "DoubleMoabHealth", "HalfCash", "AlternateBloonsRounds",
+        ):
+            self.auto_location_groups[mode] = set(
+                name for name in self.locations.keys() if name.endswith(f"-{mode}")
+            )
+
+        for diff_name, map_list in self.map_names_by_difficulty.items():
+            self.auto_location_groups[diff_name] = set(
+                name for name in self.locations.keys()
+                if any(name.startswith(f"{m}-") for m in map_list)
+            )
 
     def get_maps(self, minDiff=0, maxDiff=3) -> List[str]:
         """List all Map IDs within the difficulties that can be played."""
