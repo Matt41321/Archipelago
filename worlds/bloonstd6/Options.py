@@ -282,7 +282,7 @@ class CustomRoundChecks(OptionSet):
     """
     Specify exact rounds to send checks on, in addition to or instead of the Round Sanity interval.
     Enter round numbers between 1 and 100.
-    Example: [98, 95, 93, 78]
+    Example: ['98', '95', '93', '78']
     If Round Sanity is also set, both sets of checks are included.
     """
 
