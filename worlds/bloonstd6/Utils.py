@@ -156,6 +156,7 @@ class Shared:
         "Geraldo",
         "Corvus",
         "Silas",
+        "DanDMonke",
     ]
     pathNames: List[str] = ["TopPath", "MiddlePath", "BottomPath"]
 

@@ -66,6 +66,7 @@ class BloonsLocations:
             "Logs",
             "SpaPits",
             "ThreeMinesAround",
+            "SkullTweak",
         ],
         "intermediate": [
             "LuminousCove",
@@ -221,6 +222,7 @@ class BloonsLocations:
         "Muddy Puddles": "MuddyPuddles",
         "#ouch": "#ouch",
         "Tricky Tracks": "TrickyTracks",
+        "Skull Tweak": "SkullTweak",
     }
 
     id_to_display_name: Dict[str, str] = {v: k for k, v in display_name_to_id.items()}
