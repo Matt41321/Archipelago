@@ -44,6 +44,9 @@ class BTD6World(World):
     options_dataclass: ClassVar[Type[PerGameCommonOptions]] = BloonsTD6Options
     options: BloonsTD6Options
 
+    # UT Yaml-less flag
+    ut_can_gen_without_yaml = True
+
     bloonsMapData = BloonsLocations()
     bloonsItemData = BloonsItems()
 
