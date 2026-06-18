@@ -121,6 +121,45 @@ class BloonsItems:
     LITERATURE_TRAP_NAME: str = "Literature Trap"
     LITERATURE_TRAP_CODE: int = 1009
 
+    RESOLUTION_TRAP_NAME: str = "144p Trap"
+    RESOLUTION_TRAP_CODE: int = 1013
+
+    FLOOD_TRAP_NAME: str = "Flood Trap"
+    FLOOD_TRAP_CODE: int = 1014
+
+    SWAP_TRAP_NAME: str = "Swap Trap"
+    SWAP_TRAP_CODE: int = 1015
+
+    SHUFFLE_TRAP_NAME: str = "Shuffle Trap"
+    SHUFFLE_TRAP_CODE: int = 1016
+
+    ZOOM_TRAP_NAME: str = "Zoom Trap"
+    ZOOM_TRAP_CODE: int = 1017
+
+    SCREEN_FLIP_TRAP_NAME: str = "Screen Flip Trap"
+    SCREEN_FLIP_TRAP_CODE: int = 1018
+
+    CHAOS_TRAP_NAME: str = "Chaos Control Trap"
+    CHAOS_TRAP_CODE: int = 1020
+
+    MATH_QUIZ_TRAP_NAME: str = "Math Quiz Trap"
+    MATH_QUIZ_TRAP_CODE: int = 1021
+
+    TRIVIA_TRAP_NAME: str = "Trivia Trap"
+    TRIVIA_TRAP_CODE: int = 1022
+
+    POKEMON_TRIVIA_TRAP_NAME: str = "Pokemon Trivia Trap"
+    POKEMON_TRIVIA_TRAP_CODE: int = 1023
+
+    NUMBER_SEQUENCE_TRAP_NAME: str = "Number Sequence Trap"
+    NUMBER_SEQUENCE_TRAP_CODE: int = 1024
+
+    INPUT_SEQUENCE_TRAP_NAME: str = "Input Sequence Trap"
+    INPUT_SEQUENCE_TRAP_CODE: int = 1025
+
+    YAP_TRAP_NAME: str = "Yap Trap"
+    YAP_TRAP_CODE: int = 1026
+
     # Dict of trap name -> item code, used for weighted selection
     trap_items: Dict[str, int] = {
         "Modified Bloons": 1005,
@@ -128,6 +167,19 @@ class BloonsItems:
         "Bee Trap": 1007,
         "Speed Up Trap": 1008,
         "Literature Trap": 1009,
+        "144p Trap": 1013,
+        "Flood Trap": 1014,
+        "Swap Trap": 1015,
+        "Shuffle Trap": 1016,
+        "Zoom Trap": 1017,
+        "Screen Flip Trap": 1018,
+        "Chaos Control Trap": 1020,
+        "Math Quiz Trap": 1021,
+        "Trivia Trap": 1022,
+        "Pokemon Trivia Trap": 1023,
+        "Number Sequence Trap": 1024,
+        "Input Sequence Trap": 1025,
+        "Yap Trap": 1026,
     }
 
     MONKEY_BOOST_NAME: str = "Monkey Boost"
@@ -138,6 +190,9 @@ class BloonsItems:
 
     CASH_DROP_NAME: str = "Cash Drop"
     CASH_DROP_CODE: int = 1012
+
+    THRIVE_NAME: str = "Thrive"
+    THRIVE_CODE: int = 1027
 
     category_names: List[str] = [
         "Primary Monkeys",
@@ -203,6 +258,7 @@ class BloonsItems:
         self.items[self.MONKEY_BOOST_NAME] = self.MONKEY_BOOST_CODE
         self.items[self.MONKEY_STORM_NAME] = self.MONKEY_STORM_CODE
         self.items[self.CASH_DROP_NAME] = self.CASH_DROP_CODE
+        self.items[self.THRIVE_NAME] = self.THRIVE_CODE
 
         index = self.item_offset
         for name in maplist:

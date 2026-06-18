@@ -134,9 +134,9 @@ ECONOMY_HEROES: frozenset = frozenset({"Benjamin-HUnlock", "Geraldo-HUnlock"})
 # Minimum towers required per map tier and mode.
 TOWER_REQUIREMENTS: dict = {
     "beginner":     {"Easy": 1, "Medium": 1, "Hard": 3, "Impoppable": 4, "Chimps": 4},
-    "intermediate": {"Easy": 1, "Medium": 2, "Hard": 3, "Impoppable": 5, "Chimps": 5},
-    "advanced":     {"Easy": 2, "Medium": 3, "Hard": 4, "Impoppable": 7, "Chimps": 7},
-    "expert":       {"Easy": 4, "Medium": 4, "Hard": 6, "Impoppable": 10, "Chimps": 10},
+    "intermediate": {"Easy": 1, "Medium": 2, "Hard": 3, "Impoppable": 6, "Chimps": 6},
+    "advanced":     {"Easy": 3, "Medium": 4, "Hard": 7, "Impoppable": 10, "Chimps": 10},
+    "expert":       {"Easy": 5, "Medium": 7, "Hard": 10, "Impoppable": 14, "Chimps": 14},
 }
 
 # Alt modes use tower counts from their base mode.
@@ -207,6 +207,8 @@ _EXPERT_CHIMPS_STARTS: dict = {
         frozenset({"DartMonkey-TUnlock", "MonkeySub-TUnlock"}),
     ],
 }
+
+_CHIMPS_LIKE_MODES: tuple = ("Chimps", "Impoppable")
 
 # Category fallbacks for category_lock mode.
 _ANY_CATEGORY: frozenset = frozenset({
@@ -346,13 +348,64 @@ _MODE_RULE_FN = {
     "Apopalypse":            _rule_hard,
 }
 
-# Round thresholds mapped to mode difficulty for tower-count lookup.
-_ROUND_TIER_RULES = [
-    (40,  "Easy"),
-    (60,  "Medium"),
-    (80,  "Hard"),
-    (100, "Impoppable"),
-]
+PRIMARY_ONLY_TOWERS: frozenset = frozenset({
+    "DartMonkey-TUnlock", "BoomerangMonkey-TUnlock", "BombShooter-TUnlock",
+    "TackShooter-TUnlock", "IceMonkey-TUnlock", "GlueGunner-TUnlock", "Desperado-TUnlock",
+})
+MILITARY_ONLY_TOWERS: frozenset = frozenset({
+    "SniperMonkey-TUnlock", "MonkeySub-TUnlock", "MonkeyBuccaneer-TUnlock",
+    "MonkeyAce-TUnlock", "HeliPilot-TUnlock", "MortarMonkey-TUnlock", "DartlingGunner-TUnlock",
+})
+MAGIC_ONLY_TOWERS: frozenset = frozenset({
+    "WizardMonkey-TUnlock", "SuperMonkey-TUnlock", "NinjaMonkey-TUnlock",
+    "Alchemist-TUnlock", "Druid-TUnlock", "Mermonkey-TUnlock",
+})
+
+_ONLY_MODE_DATA: dict = {
+    "PrimaryOnly":  ("Primary Monkeys",  PRIMARY_ONLY_TOWERS),
+    "MilitaryOnly": ("Military Monkeys", MILITARY_ONLY_TOWERS),
+    "MagicOnly":    ("Magic Monkeys",    MAGIC_ONLY_TOWERS),
+}
+
+_MODE_DIFFICULTY: dict = {
+    "Easy": "Easy", "PrimaryOnly": "Easy", "Deflation": "Easy",
+    "Medium": "Medium", "MilitaryOnly": "Medium", "Reverse": "Medium", "Apopalypse": "Medium",
+    "Hard": "Hard", "MagicOnly": "Hard", "DoubleMoabHealth": "Hard",
+    "HalfCash": "Hard", "AlternateBloonsRounds": "Hard",
+    "Impoppable": "Impoppable", "Chimps": "Chimps",
+}
+
+_DIFFICULTY_MAX_ROUND: dict = {
+    "Easy": 40, "Medium": 60, "Hard": 80, "Impoppable": 100, "Chimps": 100,
+}
+
+
+def _mode_max_round(mode: str) -> int:
+    return _DIFFICULTY_MAX_ROUND.get(_MODE_DIFFICULTY.get(mode, "Hard"), 80)
+
+
+def max_reachable_round(world: "BTD6World", map_name: str) -> int:
+    """Highest round playable on this map given its assigned modes (0 if none)."""
+    modes = world.map_modes.get(map_name, [])
+    if not modes:
+        return 0
+    return max(_mode_max_round(m) for m in modes)
+
+
+def mode_access_rule(world: "BTD6World", map_name: str, mode: str) -> Callable:
+    """Access rule for a single (map, mode), matching its medal-location logic."""
+    player = world.player
+    category_lock = bool(world.options.category_lock.value)
+    if mode in _ONLY_MODE_DATA:
+        category_item, towers = _ONLY_MODE_DATA[mode]
+        if category_lock:
+            return lambda state, p=player, c=category_item: state.has(c, p)
+        return lambda state, p=player, ts=towers: state.has_from_list(ts, p, 2)
+    tier = _get_map_tier(world, map_name)
+    rule = _make_rule(mode, tier, player, category_lock)
+    if rule is None:
+        return lambda state: True
+    return rule
 
 
 def _make_rule(mode: str, tier: str, player: int, category_lock: bool) -> Callable | None:
@@ -389,43 +442,32 @@ def set_map_rules(world: "BTD6World", map_name: str) -> None:
         water_rule = lambda state, p=player, cl=category_lock: has_water_tower(state, p, cl)
         _apply_to_all_active_modes(world, map_name, water_rule)
 
-    if "Chimps" in map_modes and map_name in _EXPERT_CHIMPS_STARTS:
-        strategies = _EXPERT_CHIMPS_STARTS[map_name]
-        start_rule = lambda state, p=player, cl=category_lock, s=strategies: has_chimps_start(state, p, cl, s)
-        add_rule(
-            world.multiworld.get_location(f"{map_name}-Chimps", player),
-            start_rule,
-        )
+    for mode in _CHIMPS_LIKE_MODES:
+        if mode not in map_modes:
+            continue
+        loc = world.multiworld.get_location(f"{map_name}-{mode}", player)
 
-    if (
-        "Chimps" in map_modes
-        and tier in ("advanced", "expert")
-        and world.options.progressive_prices.value
-    ):
-        prices_rule = lambda state, p=player: state.has("Progressive Prices", p, 1)
-        add_rule(
-            world.multiworld.get_location(f"{map_name}-Chimps", player),
-            prices_rule,
-        )
+        if map_name in _EXPERT_CHIMPS_STARTS:
+            strategies = _EXPERT_CHIMPS_STARTS[map_name]
+            add_rule(loc, lambda state, p=player, cl=category_lock, s=strategies: has_chimps_start(state, p, cl, s))
+
+        if tier in ("advanced", "expert") and world.options.progressive_prices.value:
+            add_rule(loc, lambda state, p=player: state.has("Progressive Prices", p, 1))
 
 
 def set_round_rule(world: "BTD6World", map_name: str, round_n: int) -> None:
     player = world.player
-    category_lock = bool(world.options.category_lock.value)
-    tier = _get_map_tier(world, map_name)
-
-    mode = "Impoppable"
-    for threshold, tier_mode in _ROUND_TIER_RULES:
-        if round_n <= threshold:
-            mode = tier_mode
-            break
-
-    towers = TOWER_REQUIREMENTS[tier][mode]
-    fn = _MODE_RULE_FN[mode]
-    rule = lambda state, p=player, cl=category_lock, t=towers: fn(state, p, cl, t)
     loc = world.multiworld.get_location(f"{map_name}-Round {round_n}", player)
-    add_rule(loc, rule)
+
+    reaching_modes = [
+        m for m in world.map_modes.get(map_name, [])
+        if _mode_max_round(m) >= round_n
+    ]
+    if reaching_modes:
+        sub_rules = [mode_access_rule(world, map_name, m) for m in reaching_modes]
+        add_rule(loc, lambda state, rs=sub_rules: any(r(state) for r in rs))
 
     if map_name in _WATER_REQUIRED_MAPS:
+        category_lock = bool(world.options.category_lock.value)
         water_rule = lambda state, p=player, cl=category_lock: has_water_tower(state, p, cl)
         add_rule(loc, water_rule)

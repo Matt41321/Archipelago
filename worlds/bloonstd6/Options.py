@@ -180,7 +180,7 @@ class MaxLevel(Range):
     """
     What do you want to be the maximum level of the randomizer?
 
-    Levels start at 0, and you're required to go to at least 40
+    Levels start at 0, if at 0 they are disabled.
     """
 
     display_name = "Maximum Level"
@@ -348,6 +348,19 @@ _default_trap_weights = {
     "Bee Trap": 10,
     "Speed Up Trap": 10,
     "Literature Trap": 10,
+    "144p Trap": 10,
+    "Flood Trap": 10,
+    "Swap Trap": 10,
+    "Shuffle Trap": 10,
+    "Zoom Trap": 10,
+    "Screen Flip Trap": 10,
+    "Chaos Control Trap": 10,
+    "Math Quiz Trap": 10,
+    "Trivia Trap": 10,
+    "Pokemon Trivia Trap": 10,
+    "Number Sequence Trap": 10,
+    "Input Sequence Trap": 10,
+    "Yap Trap": 10,
 }
 
 

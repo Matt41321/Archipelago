@@ -9,7 +9,7 @@ from Options import PerGameCommonOptions
 from worlds.generic.Rules import add_rule, set_rule
 
 from .Options import BloonsTD6Options, btd6_option_groups
-from .Rules import set_map_rules, set_round_rule, has_economy, STARTING_DAMAGE_TOWERS
+from .Rules import set_map_rules, set_round_rule, max_reachable_round, has_economy, STARTING_DAMAGE_TOWERS
 from .Locations import BTD6Hero, BTD6Knowledge, BTD6Map, BTD6Medal, BloonsLocations
 from .Items import (
     BTD6CategoryUnlock,
@@ -194,7 +194,16 @@ class BTD6World(World):
         self.goal_mode = next((m for m in _HARDNESS_ORDER if m in pool), "Easy")
 
     def _load_from_passthrough(self, passthrough: Dict[str, Any]) -> None:
-        """Restore generate_early state from slot data (used by Universal Tracker)."""
+        """Restore generate_early state from slot data."""
+        slot_options = passthrough.get("options", {})
+        for opt_key, opt_value in slot_options.items():
+            opt = getattr(self.options, opt_key, None)
+            if opt is not None:
+                try:
+                    setattr(self.options, opt_key, opt.from_any(opt_value))
+                except Exception:
+                    pass
+
         self.victory_map_name = passthrough["victoryLocation"]
         self.starting_maps = list(passthrough["startingMaps"])
         self.included_maps = list(passthrough["includedMaps"])
@@ -240,6 +249,9 @@ class BTD6World(World):
 
         if name == self.bloonsItemData.CASH_DROP_NAME:
             return BTD6FillerItem(name, self.bloonsItemData.CASH_DROP_CODE, self.player)
+
+        if name == self.bloonsItemData.THRIVE_NAME:
+            return BTD6FillerItem(name, self.bloonsItemData.THRIVE_CODE, self.player)
 
         if name == self.bloonsItemData.PROGRESSIVE_KNOWLEDGE_NAME:
             return BTD6ProgressiveKnowledge(self.bloonsItemData.PROGRESSIVE_KNOWLEDGE_CODE, self.player)
@@ -349,14 +361,14 @@ class BTD6World(World):
         for _ in range(trap_count):
             chosen = random.choices(trap_names, weights=trap_weights, k=1)[0]
             self.multiworld.itempool.append(self.create_item(chosen))
-        # Split non-trap filler evenly between Monkey Boost, Monkey Storm, and Cash Boost
         filler_cycle = [
             BloonsItems.MONKEY_BOOST_NAME,
             BloonsItems.MONKEY_STORM_NAME,
             BloonsItems.CASH_DROP_NAME,
+            BloonsItems.THRIVE_NAME,
         ]
         for i in range(money_count):
-            self.multiworld.itempool.append(self.create_item(filler_cycle[i % 3]))
+            self.multiworld.itempool.append(self.create_item(filler_cycle[i % len(filler_cycle)]))
 
     def create_regions(self) -> None:
         menu_region = Region("Menu", self.player, self.multiworld)
@@ -478,7 +490,10 @@ class BTD6World(World):
                     round_check_set.add(int(r_str))
                 except ValueError:
                     pass
+            map_max_round = max_reachable_round(self, name)
             for r in sorted(round_check_set):
+                if r > map_max_round:
+                    continue
                 loc_name = f"{name}-Round {r}"
                 region.add_locations(
                     {loc_name: self.bloonsMapData.locations[loc_name]}
@@ -644,6 +659,15 @@ class BTD6World(World):
             "upgradeSanity": bool(self.options.upgrade_sanity.value),
             "goal": int(self.options.goal.value),
             "deathLink": bool(self.options.death_link.value),
+            "options": self.options.as_dict(
+                "goal", "total_medals", "medalreq", "category_lock",
+                "xp_curve", "static_req", "max_level",
+                "progressive_knowledge", "progressive_prices",
+                "pop_tier_checks", "tier3_pop_requirement",
+                "tier4_pop_requirement", "tier5_pop_requirement",
+                "upgrade_sanity", "round_sanity", "custom_round_checks",
+                "trap_percentage", "trap_weights",
+            ),
             # Fields used by the Universal Tracker to reconstruct the exact same world.
             "startingMaps": self.starting_maps,
             "includedMaps": self.included_maps,
