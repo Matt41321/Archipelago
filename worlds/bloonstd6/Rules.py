@@ -23,6 +23,7 @@ STARTING_DAMAGE_TOWERS: frozenset = frozenset({
     "Mermonkey",
     "EngineerMonkey",
     "BeastHandler",
+    "Skywarden",
 })
 
 # All damage-dealing towers.
@@ -48,6 +49,7 @@ DAMAGE_TOWERS: frozenset = frozenset({
     "SpikeFactory-TUnlock",
     "EngineerMonkey-TUnlock",
     "BeastHandler-TUnlock",
+    "Skywarden-TUnlock",
 })
 
 # Towers that can detect/pop camo bloons.
@@ -69,6 +71,7 @@ CAMO_CAPABLE_TOWERS: frozenset = frozenset({
     "SpikeFactory-TUnlock",
     "MonkeyVillage-TUnlock",
     "EngineerMonkey-TUnlock",
+    "Skywarden-TUnlock"
 })
 
 # Towers that can deal with DDTs.
@@ -96,7 +99,7 @@ WATER_TOWERS: frozenset = frozenset({
     "Mermonkey-TUnlock",
 })
 
-# All 25 towers — used for n_towers counting.
+# All 26 towers — used for n_towers counting.
 ALL_TOWERS: frozenset = frozenset({
     "DartMonkey-TUnlock",
     "BoomerangMonkey-TUnlock",
@@ -123,6 +126,7 @@ ALL_TOWERS: frozenset = frozenset({
     "EngineerMonkey-TUnlock",
     "BeastHandler-TUnlock",
     "Desperado-TUnlock",
+    "Skywarden-TUnlock"
 })
 
 # Heroes with camo detection.
@@ -208,6 +212,8 @@ _EXPERT_CHIMPS_STARTS: dict = {
     ],
 }
 
+# The hardest, 100-round modes. Both get the CHIMPS-style access restrictions
+# (valid expert starting strategy + a Progressive Prices item when enabled).
 _CHIMPS_LIKE_MODES: tuple = ("Chimps", "Impoppable")
 
 # Category fallbacks for category_lock mode.
@@ -358,7 +364,7 @@ MILITARY_ONLY_TOWERS: frozenset = frozenset({
 })
 MAGIC_ONLY_TOWERS: frozenset = frozenset({
     "WizardMonkey-TUnlock", "SuperMonkey-TUnlock", "NinjaMonkey-TUnlock",
-    "Alchemist-TUnlock", "Druid-TUnlock", "Mermonkey-TUnlock",
+    "Alchemist-TUnlock", "Druid-TUnlock", "Mermonkey-TUnlock", "Skywarden-TUnlock",
 })
 
 _ONLY_MODE_DATA: dict = {
@@ -442,6 +448,9 @@ def set_map_rules(world: "BTD6World", map_name: str) -> None:
         water_rule = lambda state, p=player, cl=category_lock: has_water_tower(state, p, cl)
         _apply_to_all_active_modes(world, map_name, water_rule)
 
+    # CHIMPS and Impoppable share the same restrictions: an expert map's valid
+    # starting strategy, plus (when progressive prices is on) at least one
+    # Progressive Prices item.
     for mode in _CHIMPS_LIKE_MODES:
         if mode not in map_modes:
             continue

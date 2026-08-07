@@ -117,7 +117,8 @@ class BloonsLocations:
             "LastResort",
             "PartyParade",
             "SunsetGulch",
-            "MushroomGrotto",           
+            "MushroomGrotto",   
+            "Ascent",
         ],
         "expert": [
             "GlacialTrail",
@@ -223,6 +224,7 @@ class BloonsLocations:
         "#ouch": "#ouch",
         "Tricky Tracks": "TrickyTracks",
         "Skull Tweak": "SkullTweak",
+        "Ascent": "Ascent",
     }
 
     id_to_display_name: Dict[str, str] = {v: k for k, v in display_name_to_id.items()}
@@ -234,7 +236,6 @@ class BloonsLocations:
 
     @classmethod
     def resolve_map_name(cls, name: str) -> str | None:
-        """Convert a user-supplied map name to an internal ID. Returns None if not found."""
         if name in cls.display_name_to_id:
             return cls.display_name_to_id[name]
         normalized = name.lower().replace(" ", "").replace("'", "")

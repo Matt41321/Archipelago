@@ -468,7 +468,7 @@ class BTD6World(World):
                             {
                                 "WizardMonkey-TUnlock", "SuperMonkey-TUnlock",
                                 "NinjaMonkey-TUnlock", "Alchemist-TUnlock",
-                                "Druid-TUnlock", "Mermonkey-TUnlock",
+                                "Druid-TUnlock", "Mermonkey-TUnlock", "Skywarden-TUnlock"
                             },
                             self.player, 2,
                         ),

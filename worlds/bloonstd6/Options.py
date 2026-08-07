@@ -140,9 +140,6 @@ class StartingMonkeyAmount(Range):
     """
     How many random starting Monkeys would you like?
     Only relevant if Category Lock is disabled.
-
-    Min: 1
-    Max: 25
     """
 
     range_start = 1

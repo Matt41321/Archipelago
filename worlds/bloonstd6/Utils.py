@@ -186,4 +186,5 @@ class Shared:
         "EngineerMonkey",
         "BeastHandler",
         "Desperado",
+        "Skywarden"
     ]

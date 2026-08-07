@@ -204,7 +204,7 @@ class BloonsItems:
     category_towers: Dict[str, List[str]] = {
         "Primary Monkeys": ["DartMonkey", "BoomerangMonkey", "BombShooter", "TackShooter", "IceMonkey", "GlueGunner", "Desperado"],
         "Military Monkeys": ["SniperMonkey", "MonkeySub", "MonkeyBuccaneer", "MonkeyAce", "HeliPilot", "MortarMonkey", "DartlingGunner"],
-        "Magic Monkeys": ["WizardMonkey", "SuperMonkey", "NinjaMonkey", "Alchemist", "Druid", "Mermonkey"],
+        "Magic Monkeys": ["WizardMonkey", "SuperMonkey", "NinjaMonkey", "Alchemist", "Druid", "Mermonkey", "Skywarden"],
         "Support Monkeys": ["BananaFarm", "SpikeFactory", "MonkeyVillage", "EngineerMonkey", "BeastHandler"],
     }
 
@@ -239,6 +239,7 @@ class BloonsItems:
         "EngineerMonkey",
         "BeastHandler",
         "Desperado",
+        "Skywarden",
     ]
 
     def __init__(self) -> None:
