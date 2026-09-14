@@ -56,6 +56,13 @@ class BTD6ProgressivePrices(Item):
         super().__init__("Progressive Prices", ItemClassification.progression, code, player)
 
 
+class BTD6ProgressiveStartingCash(Item):
+    game: str = "Bloons TD6"
+
+    def __init__(self, code: Optional[int], player: int):
+        super().__init__("Progressive Starting Cash", ItemClassification.useful, code, player)
+
+
 class BTD6CategoryUnlock(Item):
     game: str = "Bloons TD6"
 
@@ -96,6 +103,9 @@ class BloonsItems:
 
     PROGRESSIVE_PRICES_NAME: str = "Progressive Prices"
     PROGRESSIVE_PRICES_CODE: int = 1000
+
+    PROGRESSIVE_STARTING_CASH_NAME: str = "Progressive Starting Cash"
+    PROGRESSIVE_STARTING_CASH_CODE: int = 1028
 
     CATEGORY_PRIMARY_NAME: str = "Primary Monkeys"
     CATEGORY_PRIMARY_CODE: int = 1001
@@ -242,6 +252,49 @@ class BloonsItems:
         "Skywarden",
     ]
 
+    display_name_to_id: Dict[str, str] = {
+        "Dart Monkey": "DartMonkey",
+        "Boomerang Monkey": "BoomerangMonkey",
+        "Bomb Shooter": "BombShooter",
+        "Tack Shooter": "TackShooter",
+        "Ice Monkey": "IceMonkey",
+        "Glue Gunner": "GlueGunner",
+        "Sniper Monkey": "SniperMonkey",
+        "Monkey Sub": "MonkeySub",
+        "Monkey Buccaneer": "MonkeyBuccaneer",
+        "Monkey Ace": "MonkeyAce",
+        "Heli Pilot": "HeliPilot",
+        "Mortar Monkey": "MortarMonkey",
+        "Dartling Gunner": "DartlingGunner",
+        "Wizard Monkey": "WizardMonkey",
+        "Super Monkey": "SuperMonkey",
+        "Ninja Monkey": "NinjaMonkey",
+        "Alchemist": "Alchemist",
+        "Druid": "Druid",
+        "Mermonkey": "Mermonkey",
+        "Banana Farm": "BananaFarm",
+        "Spike Factory": "SpikeFactory",
+        "Monkey Village": "MonkeyVillage",
+        "Engineer Monkey": "EngineerMonkey",
+        "Beast Handler": "BeastHandler",
+        "Desperado": "Desperado",
+        "Skywarden": "Skywarden",
+    }
+
+    id_to_display_name: Dict[str, str] = {v: k for k, v in display_name_to_id.items()}
+
+    _normalized_lookup: Dict[str, str] = {
+        k.lower().replace(" ", ""): v
+        for k, v in display_name_to_id.items()
+    }
+
+    @classmethod
+    def resolve_monkey_name(cls, name: str) -> str | None:
+        if name in cls.display_name_to_id:
+            return cls.display_name_to_id[name]
+        normalized = name.lower().replace(" ", "")
+        return cls._normalized_lookup.get(normalized)
+
     def __init__(self) -> None:
         mapdata = BloonsLocations()
         maplist = mapdata.get_maps()
@@ -250,6 +303,7 @@ class BloonsItems:
         self.items[self.MONEY_NAME] = self.MONEY_CODE
         self.items[self.PROGRESSIVE_KNOWLEDGE_NAME] = self.PROGRESSIVE_KNOWLEDGE_CODE
         self.items[self.PROGRESSIVE_PRICES_NAME] = self.PROGRESSIVE_PRICES_CODE
+        self.items[self.PROGRESSIVE_STARTING_CASH_NAME] = self.PROGRESSIVE_STARTING_CASH_CODE
         self.items[self.CATEGORY_PRIMARY_NAME] = self.CATEGORY_PRIMARY_CODE
         self.items[self.CATEGORY_MILITARY_NAME] = self.CATEGORY_MILITARY_CODE
         self.items[self.CATEGORY_MAGIC_NAME] = self.CATEGORY_MAGIC_CODE

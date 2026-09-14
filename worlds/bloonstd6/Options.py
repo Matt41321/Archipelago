@@ -124,21 +124,18 @@ class MedalRequirementPercentage(Range):
     default = 60
 
 
-class StartingMonkeys(Toggle):
-    """
-    Would you like to randomize all starting monkeys or include the Dart Monkey in the starting monkeys?
-    Only relevant if Category Lock is disabled.
-
-    True/On: All Starting Monkeys will be random.
-    False/Off: The first starting monkey no matter how many you include will always be the Dart Monkey.
-    """
-
-    display_name = "Random Starting Monkeys"
+_ALL_MONKEY_DISPLAY_NAMES = frozenset([
+    "Dart Monkey", "Boomerang Monkey", "Bomb Shooter", "Tack Shooter", "Ice Monkey",
+    "Glue Gunner", "Sniper Monkey", "Monkey Sub", "Monkey Buccaneer", "Monkey Ace",
+    "Heli Pilot", "Mortar Monkey", "Dartling Gunner", "Wizard Monkey", "Super Monkey",
+    "Ninja Monkey", "Alchemist", "Druid", "Mermonkey", "Banana Farm", "Spike Factory",
+    "Monkey Village", "Engineer Monkey", "Beast Handler", "Desperado", "Skywarden",
+])
 
 
 class StartingMonkeyAmount(Range):
     """
-    How many random starting Monkeys would you like?
+    The number of starting Monkeys you would like.
     Only relevant if Category Lock is disabled.
     """
 
@@ -146,6 +143,23 @@ class StartingMonkeyAmount(Range):
     range_end = 3
     default = 1
     display_name = "Starting Monkey Amount"
+
+
+class StartingMonkeys(OptionSet):
+    """
+    Choose specific starting monkeys by entering their display name, e.g. ["Heli Pilot"].
+    Only relevant if Category Lock is disabled.
+
+    Empty: All starting monkeys are randomized.
+    Non-empty: Every monkey listed is guaranteed as a starting monkey. If you list fewer
+               monkeys than Starting Monkey Amount, the remaining slots are filled randomly.
+               If you list more monkeys than Starting Monkey Amount, all of them are still included.
+    """
+
+    display_name = "Starting Monkeys"
+    valid_keys = _ALL_MONKEY_DISPLAY_NAMES
+    default = frozenset()
+
 
 
 class XPCurve(Toggle):
@@ -246,13 +260,12 @@ class Tier5PopRequirement(Range):
 
 class UpgradeSanity(Toggle):
     """
-    {Experimental - logic does not account for this}
     False/Off: Monkey upgrade paths are freely available as normal.
     True/On:  Each monkey's three upgrade paths (Top, Middle, Bottom) become items
               in the multiworld pool. Receiving e.g. "DartMonkey-MiddlePath" unlocks
               Dart Monkey's tier 4 and 5 upgrades on the middle path.
               Tiers 1-3 remain freely purchasable on all paths.
-              {Adds 75 items to the pool} 
+              {Adds 78 items to the pool} 
     """
 
     display_name = "Upgrade Sanity"
@@ -297,6 +310,19 @@ class ProgressivePrices(Toggle):
     """
 
     display_name = "Progressive Prices"
+
+
+class ProgressiveStartingCash(Range):
+    """
+    The number of "Progressive Starting Cash" items placed in the item pool.
+    Every game starts with its normal starting cash (650 in most modes),
+    and each Progressive Starting Cash you receive adds another 150 to it.
+    """
+
+    display_name = "Progressive Starting Cash"
+    range_start = 0
+    range_end = 10
+    default = 0
 
 
 class CategoryLock(Toggle):
@@ -377,6 +403,17 @@ class TrapWeights(OptionCounter):
     default = _default_trap_weights
 
 
+class TrapLink(Toggle):
+    """
+    Whether your received traps are linked to other players
+    
+    You will also receive any linked traps from other players with Trap Link enabled,
+    if you have a weight above "0" set for that trap.
+    """
+
+    display_name = "Trap Link"
+
+
 _ALL_MAP_DISPLAY_NAMES = frozenset([
     "Monkey Meadow", "In The Loop", "Middle Of The Road", "Tinkerton", "Tree Stump",
     "Town Centre", "One Two Tree", "Scrapyard", "The Cabin", "Resort", "Skates",
@@ -437,13 +474,14 @@ class BloonsTD6Options(PerGameCommonOptions):
     map_blacklist: MapBlacklist
     map_whitelist: MapWhitelist
     category_lock: CategoryLock
-    starting_monkey: StartingMonkeys
     num_start_monkey: StartingMonkeyAmount
+    starting_monkey: StartingMonkeys
     xp_curve: XPCurve
     static_req: StaticXPRequirement
     max_level: MaxLevel
     progressive_knowledge: ProgressiveKnowledge
     progressive_prices: ProgressivePrices
+    progressive_starting_cash: ProgressiveStartingCash
     pop_tier_checks: PopTierChecks
     tier3_pop_requirement: Tier3PopRequirement
     tier4_pop_requirement: Tier4PopRequirement
@@ -454,6 +492,7 @@ class BloonsTD6Options(PerGameCommonOptions):
     death_link: DeathLink
     trap_percentage: TrapPercentage
     trap_weights: TrapWeights
+    trap_link: TrapLink
 
 
 btd6_option_groups = [
@@ -475,12 +514,13 @@ btd6_option_groups = [
     ]),
     OptionGroup("Monkey Options", [
         CategoryLock,
-        StartingMonkeys,
         StartingMonkeyAmount,
+        StartingMonkeys,
     ]),
     OptionGroup("Progression Options", [
         ProgressiveKnowledge,
         ProgressivePrices,
+        ProgressiveStartingCash,
         MaxLevel,
         StaticXPRequirement,
         XPCurve,
@@ -497,5 +537,6 @@ btd6_option_groups = [
     OptionGroup("Trap Options", [
         TrapPercentage,
         TrapWeights,
+        TrapLink,
     ]),
 ]

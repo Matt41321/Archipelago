@@ -19,6 +19,7 @@ from .Items import (
     BTD6PathUnlock,
     BTD6ProgressiveKnowledge,
     BTD6ProgressivePrices,
+    BTD6ProgressiveStartingCash,
     BTD6MapUnlock,
     BTD6MedalItem,
     BTD6MonkeyUnlock,
@@ -135,9 +136,6 @@ class BTD6World(World):
 
         ## Handle start of game initialization for monkey towers
 
-        # Towers that can deal damage and are affordable enough to start with.
-        damage_towers = STARTING_DAMAGE_TOWERS
-
         if self.options.category_lock.value:
             # Category Lock: start with one random category, other 3 are items
             categories = BloonsItems.category_names.copy()
@@ -155,20 +153,33 @@ class BTD6World(World):
         else:
             available_towers: List[str] = self.bloonsItemData.monkeyIDs.copy()
 
-            # Sets starting monkey to Dart Monkey or randomizes it based on options
-            if not self.options.starting_monkey.value:
-                self.starting_monkeys.append(available_towers.pop(0))
-                self.random.shuffle(available_towers)
-            else:
-                self.random.shuffle(available_towers)
-                # Ensure first starting monkey can deal damage
-                damage_pool = [t for t in available_towers if t in damage_towers]
+            chosen: List[str] = []
+            for name in self.options.starting_monkey.value:
+                resolved = BloonsItems.resolve_monkey_name(name)
+                if resolved and resolved in available_towers and resolved not in chosen:
+                    chosen.append(resolved)
+
+            for monkey in chosen:
+                available_towers.remove(monkey)
+            self.starting_monkeys.extend(chosen)
+
+            excluded_from_random: List[str] = []
+            if self.options.upgrade_sanity.value:
+                for monkey in ("DartMonkey", "WizardMonkey"):
+                    if monkey in available_towers:
+                        available_towers.remove(monkey)
+                        excluded_from_random.append(monkey)
+
+            self.random.shuffle(available_towers)
+
+            if not chosen:
+                damage_pool = [t for t in available_towers if t in STARTING_DAMAGE_TOWERS]
                 first_monkey = self.random.choice(damage_pool)
                 available_towers.remove(first_monkey)
                 self.starting_monkeys.append(first_monkey)
 
-            # Adds additional starting monkeys based on options
-            for _ in range(self.options.num_start_monkey.value - 1):
+            remaining_slots = max(0, self.options.num_start_monkey.value - len(self.starting_monkeys))
+            for _ in range(remaining_slots):
                 self.starting_monkeys.append(available_towers.pop())
 
             for monkey in self.starting_monkeys:
@@ -176,6 +187,7 @@ class BTD6World(World):
 
             # Put the rest of the monkeys into storage for item generation
             self.remaining_monkeys.extend(available_towers)
+            self.remaining_monkeys.extend(excluded_from_random)
 
         # Hardness order for determining the goal mode (hardest first)
         _HARDNESS_ORDER = [
@@ -259,6 +271,9 @@ class BTD6World(World):
         if name == self.bloonsItemData.PROGRESSIVE_PRICES_NAME:
             return BTD6ProgressivePrices(self.bloonsItemData.PROGRESSIVE_PRICES_CODE, self.player)
 
+        if name == self.bloonsItemData.PROGRESSIVE_STARTING_CASH_NAME:
+            return BTD6ProgressiveStartingCash(self.bloonsItemData.PROGRESSIVE_STARTING_CASH_CODE, self.player)
+
         if name in BloonsItems.category_towers:
             return BTD6CategoryUnlock(name, self.bloonsItemData.items[name], self.player)
 
@@ -320,6 +335,10 @@ class BTD6World(World):
             for _ in range(3):
                 self.multiworld.itempool.append(self.create_item(BloonsItems.PROGRESSIVE_PRICES_NAME))
                 item_count += 1
+
+        for _ in range(self.options.progressive_starting_cash.value):
+            self.multiworld.itempool.append(self.create_item(BloonsItems.PROGRESSIVE_STARTING_CASH_NAME))
+            item_count += 1
 
         if self.options.upgrade_sanity.value:
             for monkey in self.bloonsItemData.monkeyIDs:
@@ -659,10 +678,11 @@ class BTD6World(World):
             "upgradeSanity": bool(self.options.upgrade_sanity.value),
             "goal": int(self.options.goal.value),
             "deathLink": bool(self.options.death_link.value),
+            "trapLink": bool(self.options.trap_link.value),
             "options": self.options.as_dict(
                 "goal", "total_medals", "medalreq", "category_lock",
                 "xp_curve", "static_req", "max_level",
-                "progressive_knowledge", "progressive_prices",
+                "progressive_knowledge", "progressive_prices", "progressive_starting_cash",
                 "pop_tier_checks", "tier3_pop_requirement",
                 "tier4_pop_requirement", "tier5_pop_requirement",
                 "upgrade_sanity", "round_sanity", "custom_round_checks",
