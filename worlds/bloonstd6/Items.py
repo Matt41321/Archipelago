@@ -218,6 +218,14 @@ class BloonsItems:
         "Support Monkeys": ["BananaFarm", "SpikeFactory", "MonkeyVillage", "EngineerMonkey", "BeastHandler"],
     }
 
+    # Reverse lookup used by the logic rules in category lock mode, where a monkey is
+    # represented by its category item instead of its own "-TUnlock" item.
+    monkey_to_category: Dict[str, str] = {
+        monkey: category
+        for category, monkeys in category_towers.items()
+        for monkey in monkeys
+    }
+
     item_offset = 3
 
     items: Dict[str, int] = {}

@@ -261,6 +261,19 @@ _ECONOMY_CATEGORY: frozenset = frozenset({"Support Monkeys"})
 _WATER_CATEGORIES: frozenset = frozenset({"Military Monkeys", "Magic Monkeys"})
 
 
+_MONKEY_CATEGORY: dict = {}
+
+def _monkey_category(monkey: str) -> str | None:
+    if not _MONKEY_CATEGORY:
+        from .Items import BloonsItems
+        _MONKEY_CATEGORY.update(BloonsItems.monkey_to_category)
+    return _MONKEY_CATEGORY.get(monkey)
+
+
+def _owned_categories(state, player: int) -> set:
+    return {category for category in _ANY_CATEGORY if state.has(category, player)}
+
+
 def _get_map_tier(world: "BTD6World", map_name: str) -> str:
     for tier, names in world.bloonsMapData.map_names_by_difficulty.items():
         if map_name in names:
@@ -322,13 +335,18 @@ def n_towers(state, player: int, k: int, category_lock: bool, no_water: bool = F
     return state.has_from_list(pool, player, k)
 
 
-def n_paths(state, player: int, k: int, upgrade_sanity: bool) -> bool:
-    # A path only counts if its monkey is also unlocked.
+def n_paths(state, player: int, k: int, upgrade_sanity: bool, category_lock: bool = False) -> bool:
+    # A path only counts if its monkey is also unlocked. In category lock mode monkeys
+    # are unlocked by category, so there are no "-TUnlock" items to look for.
     if not upgrade_sanity or k <= 0:
         return True
     usable = 0
+    owned = _owned_categories(state, player) if category_lock else None
     for monkey in Shared.monkeyIDs:
-        if not state.has(f"{monkey}-TUnlock", player):
+        if category_lock:
+            if _monkey_category(monkey) not in owned:
+                continue
+        elif not state.has(f"{monkey}-TUnlock", player):
             continue
         for path in Shared.pathNames:
             if state.has(f"{monkey}-{path}", player):
@@ -343,7 +361,7 @@ def _rule_easy(state, p: int, cl: bool, towers: int, no_water: bool, paths: int,
         has_damage(state, p, cl, no_water)
         and has_camo_detection(state, p, cl, no_water)
         and n_towers(state, p, towers, cl, no_water)
-        and n_paths(state, p, paths, upgrade_sanity)
+        and n_paths(state, p, paths, upgrade_sanity, cl)
     )
 
 
@@ -352,7 +370,7 @@ def _rule_medium(state, p: int, cl: bool, towers: int, no_water: bool, paths: in
         has_damage(state, p, cl, no_water)
         and has_camo_detection(state, p, cl, no_water)
         and n_towers(state, p, towers, cl, no_water)
-        and n_paths(state, p, paths, upgrade_sanity)
+        and n_paths(state, p, paths, upgrade_sanity, cl)
     )
 
 
@@ -361,7 +379,7 @@ def _rule_hard(state, p: int, cl: bool, towers: int, no_water: bool, paths: int,
         has_damage(state, p, cl, no_water)
         and has_camo_detection(state, p, cl, no_water)
         and n_towers(state, p, towers, cl, no_water)
-        and n_paths(state, p, paths, upgrade_sanity)
+        and n_paths(state, p, paths, upgrade_sanity, cl)
     )
 
 
@@ -371,7 +389,7 @@ def _rule_impoppable(state, p: int, cl: bool, towers: int, no_water: bool, paths
         and has_camo_detection(state, p, cl, no_water)
         and has_ddt_counter(state, p, cl)
         and n_towers(state, p, towers, cl, no_water)
-        and n_paths(state, p, paths, upgrade_sanity)
+        and n_paths(state, p, paths, upgrade_sanity, cl)
     )
 
 
@@ -381,7 +399,7 @@ def _rule_chimps(state, p: int, cl: bool, towers: int, no_water: bool, paths: in
         and has_camo_detection(state, p, cl, no_water)
         and has_ddt_counter(state, p, cl)
         and n_towers(state, p, towers, cl, no_water)
-        and n_paths(state, p, paths, upgrade_sanity)
+        and n_paths(state, p, paths, upgrade_sanity, cl)
     )
 
 
@@ -391,7 +409,7 @@ def _rule_deflation(state, p: int, cl: bool, towers: int, no_water: bool, paths:
         has_damage(state, p, cl, no_water)
         and has_camo_detection(state, p, cl, no_water)
         and n_towers(state, p, towers, cl, no_water)
-        and n_paths(state, p, paths, upgrade_sanity)
+        and n_paths(state, p, paths, upgrade_sanity, cl)
     )
 
 

@@ -30,6 +30,8 @@ class MinMapDiff(Range):
     1 = Intermediate
     2 = Advanced
     3 = Expert
+
+    Must be less than or equal to Maximum Map Difficulty.
     """
 
     range_start = 0
@@ -46,6 +48,8 @@ class MaxMapDiff(Range):
     1 = Intermediate
     2 = Advanced
     3 = Expert
+
+    Must be greater than or equal to Minimum Map Difficulty.
     """
 
     range_start = 0
@@ -290,7 +294,7 @@ class RoundSanity(Range):
 
 class CustomRoundChecks(OptionSet):
     """
-    Specify exact rounds to send checks on, in addition to or instead of the Round Sanity interval.
+    Specify exact rounds to send checks on, if Round Sanity overlaps it counts as 1 check.
     Enter round numbers between 1 and 100.
     Example: ['98', '95', '93', '78']
     If Round Sanity is also set, both sets of checks are included.

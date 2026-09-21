@@ -1,11 +1,11 @@
+import logging
 import math
-import random
 from BaseClasses import Item, Region
 from Utils import visualize_regions
 from worlds.AutoWorld import WebWorld, World
 
-from typing import Any, ClassVar, Dict, List, Type
-from Options import PerGameCommonOptions
+from typing import Any, ClassVar, Dict, List, Set, Type
+from Options import OptionError, PerGameCommonOptions
 from worlds.generic.Rules import add_rule, set_rule
 
 from .Options import BloonsTD6Options, btd6_option_groups
@@ -28,6 +28,7 @@ from .Items import (
 )
 from .Utils import Shared
 
+DIFFICULTY_NAMES = ["Beginner", "Intermediate", "Advanced", "Expert"]
 
 class BTD6Web(WebWorld):
     option_groups = btd6_option_groups
@@ -57,18 +58,172 @@ class BTD6World(World):
     item_name_groups = bloonsItemData.auto_item_groups
     location_name_groups = bloonsMapData.auto_location_groups
 
+    @staticmethod
+    def _resolve_map_ids(names) -> Set[str]:
+        """Turn option display names into internal map IDs, dropping anything unknown."""
+        return {
+            resolved for name in names
+            if (resolved := BloonsLocations.resolve_map_name(name)) is not None
+        }
+
+    def _blacklisted_map_ids(self) -> Set[str]:
+        return self._resolve_map_ids(self.options.map_blacklist.value)
+
+    def _whitelisted_map_ids(self) -> Set[str]:
+        return self._resolve_map_ids(self.options.map_whitelist.value)
+
+    def _validate_map_options(self) -> None:
+        """Fail generation with a readable message when the map options can't build a world.
+
+        Covers the difficulty range being inverted and the blacklist removing so many maps
+        that there aren't enough left for the starting maps and the goal map."""
+        player = self.player_name
+        min_diff = self.options.min_map_diff.value
+        max_diff = self.options.max_map_diff.value
+        starting_count = self.options.starting_map_count.value
+
+        if min_diff > max_diff:
+            raise OptionError(
+                f"Bloons TD6: {player} has Minimum Map Difficulty ({DIFFICULTY_NAMES[min_diff]}) set above "
+                f"Maximum Map Difficulty ({DIFFICULTY_NAMES[max_diff]}), so no maps can be selected. "
+                f"Minimum Map Difficulty must be at most Maximum Map Difficulty."
+            )
+
+        in_range = self.bloonsMapData.get_maps(min_diff, max_diff)
+        blacklist_ids = self._blacklisted_map_ids()
+        eligible = [m for m in in_range if m not in blacklist_ids]
+        blocked = len(in_range) - len(eligible)
+        difficulty_text = (
+            DIFFICULTY_NAMES[min_diff] if min_diff == max_diff
+            else f"{DIFFICULTY_NAMES[min_diff]}-{DIFFICULTY_NAMES[max_diff]}"
+        )
+
+        needed = starting_count + 1
+        if self.options.goal.value >= 1:
+            boss_in_range = self.bloonsMapData.get_maps(0, min(max_diff, 1))
+            boss_eligible = [m for m in boss_in_range if m not in blacklist_ids]
+            if not boss_eligible:
+                goal_name = "Elite Boss" if self.options.goal.value == 2 else "Boss"
+                raise OptionError(
+                    f"Bloons TD6: {player} has the {goal_name} goal, which needs a Beginner or Intermediate "
+                    f"map for the boss event, but the Map Blacklist removes all "
+                    f"{len(boss_in_range)} of them. Remove some Beginner/Intermediate maps from the Map "
+                    f"Blacklist or choose the Default goal."
+                )
+            needed = starting_count + (1 if set(boss_eligible) & set(eligible) else 0)
+
+        if len(eligible) < needed:
+            raise OptionError(
+                f"Bloons TD6: {player} has only {len(eligible)} selectable map(s) "
+                f"({difficulty_text} difficulty; {blocked} of {len(in_range)} removed by the Map Blacklist) "
+                f"but needs at least {needed} ({starting_count} starting map(s)"
+                f"{' plus the goal map' if needed > starting_count else ''}). "
+                f"Shorten the Map Blacklist, widen the Min/Max Map Difficulty range, "
+                f"or lower Starting Map Count."
+            )
+
+        requested = starting_count + self.options.total_maps.value
+        if len(eligible) < requested:
+            logging.warning(
+                f"Bloons TD6: {player} asked for {requested} maps ({starting_count} starting + "
+                f"{self.options.total_maps.value} unlockable) but only {len(eligible)} are selectable "
+                f"({difficulty_text} difficulty; {blocked} of {len(in_range)} removed by the Map Blacklist). "
+                f"Generating with {len(eligible)} maps instead."
+            )
+
+        dropped_whitelist = sorted(
+            BloonsLocations.id_to_display_name.get(m, m)
+            for m in self._whitelisted_map_ids()
+            if m not in eligible
+        )
+        if dropped_whitelist:
+            logging.warning(
+                f"Bloons TD6: {player} whitelisted map(s) {', '.join(dropped_whitelist)}, which are "
+                f"blacklisted or outside the {difficulty_text} difficulty range and will be ignored."
+            )
+
+    def _round_check_rounds(self) -> Set[int]:
+        """The rounds Round Sanity and Custom Round Checks ask for, before per-map capping."""
+        rounds: Set[int] = set()
+        interval = self.options.round_sanity.value
+        if interval > 0:
+            r = interval
+            while r <= 100:
+                rounds.add(r)
+                r += interval
+        for r_str in self.options.custom_round_checks.value:
+            try:
+                rounds.add(int(r_str))
+            except ValueError:
+                pass
+        return rounds
+
+    def _count_locations(self) -> int:
+        """Number of locations create_regions will produce for the chosen options."""
+        round_checks = self._round_check_rounds()
+        total = 0
+        for name in self.starting_maps + self.included_maps:
+            total += 1 + len(self.map_modes.get(name, []))
+            map_max_round = max_reachable_round(self, name)
+            total += sum(1 for r in round_checks if r <= map_max_round)
+        total += len(Shared.heroIDs)
+        total += max(0, self.options.max_level.value - 1)
+        if self.options.pop_tier_checks.value:
+            total += 3 * sum(
+                1 for monkey in self.bloonsItemData.monkeyIDs
+                if f"{monkey}-Tier3" in self.bloonsMapData.locations
+            )
+        if not self.options.progressive_knowledge.value:
+            total += len(Shared.knowledgeIDs)
+        return total
+
+    def _count_required_items(self) -> Dict[str, int]:
+        """Items create_items must place, by source. Filler makes up any remainder."""
+        counts = {
+            "map unlocks": len(self.included_maps),
+            "medals": self.options.total_medals.value,
+            "monkeys": (
+                len(self.remaining_categories) if self.options.category_lock.value
+                else len(self.remaining_monkeys)
+            ),
+            "heroes": len(self.available_heroes),
+        }
+        if self.options.progressive_prices.value:
+            counts["progressive prices"] = 3
+        if self.options.progressive_starting_cash.value:
+            counts["progressive starting cash"] = self.options.progressive_starting_cash.value
+        if self.options.upgrade_sanity.value:
+            counts["upgrade paths"] = len(self.bloonsItemData.monkeyIDs) * len(Shared.pathNames)
+        counts["knowledge"] = 7 if self.options.progressive_knowledge.value else len(Shared.knowledgeIDs)
+        return counts
+
+    def _validate_pool_fits(self) -> None:
+        """Fail generation when the required items can't fit in the generated locations.
+
+        Nothing else catches this: create_items only pads the pool with filler when
+        there is room to spare, so an oversized pool surfaces much later as an
+        unactionable "Not enough locations for progression items" fill error."""
+        locations = self._count_locations()
+        counts = self._count_required_items()
+        items = sum(counts.values())
+        if items <= locations:
+            return
+
+        breakdown = ", ".join(f"{n} {label}" for label, n in counts.items() if n)
+        raise OptionError(
+            f"Bloons TD6: {self.player_name} needs {items} items ({breakdown}) but these options "
+            f"only produce {locations} locations, leaving {items - locations} item(s) with nowhere "
+            f"to go. Add locations (raise Total Map Count, Modes Per Map or Maximum Level, lower "
+            f"Round Sanity for more round checks per map, or enable Pop Tier Checks), or shrink the "
+            f"item pool (lower Total Medals, turn on Progressive Knowledge, or turn off Upgrade Sanity)."
+        )
+
     def _apply_map_filters(self, maps: List[str]) -> List[str]:
         """Apply whitelist and blacklist options to a map list.
         Blacklisted maps are removed. Whitelisted maps are moved to the end so they
         are popped first and guaranteed into the pool before random maps fill remaining slots."""
-        blacklist_ids = {
-            resolved for name in self.options.map_blacklist.value
-            if (resolved := BloonsLocations.resolve_map_name(name)) is not None
-        }
-        whitelist_ids = {
-            resolved for name in self.options.map_whitelist.value
-            if (resolved := BloonsLocations.resolve_map_name(name)) is not None
-        }
+        blacklist_ids = self._blacklisted_map_ids()
+        whitelist_ids = self._whitelisted_map_ids()
         if blacklist_ids:
             maps = [m for m in maps if m not in blacklist_ids]
         if whitelist_ids:
@@ -85,6 +240,7 @@ class BTD6World(World):
         self.starting_monkeys: List[str] = []
         self.remaining_monkeys: List[str] = []
         self.remaining_categories: List[str] = []
+        self.starting_category: str = ""
 
         self.starting_hero: str = ""
         self.available_heroes: List[str] = []
@@ -93,6 +249,8 @@ class BTD6World(World):
         if passthrough:
             self._load_from_passthrough(passthrough)
             return
+
+        self._validate_map_options()
 
         self.available_heroes = Shared.heroIDs.copy()
         self.random.shuffle(self.available_heroes)
@@ -142,7 +300,9 @@ class BTD6World(World):
             self.random.shuffle(categories)
             starting_category = categories.pop(0)
 
-            # Precollect all towers in the starting category
+            # Precollect the category item itself as well as its towers.
+            self.starting_category = starting_category
+            self.multiworld.push_precollected(self.create_item(starting_category))
             for tower in BloonsItems.category_towers[starting_category]:
                 self.multiworld.push_precollected(self.create_item(tower))
                 self.starting_monkeys.append(tower)
@@ -154,7 +314,8 @@ class BTD6World(World):
             available_towers: List[str] = self.bloonsItemData.monkeyIDs.copy()
 
             chosen: List[str] = []
-            for name in self.options.starting_monkey.value:
+            # Sorted so the starting monkeys don't depend on set iteration order.
+            for name in sorted(self.options.starting_monkey.value):
                 resolved = BloonsItems.resolve_monkey_name(name)
                 if resolved and resolved in available_towers and resolved not in chosen:
                     chosen.append(resolved)
@@ -205,6 +366,8 @@ class BTD6World(World):
             self.map_modes[map_name] = self.random.sample(pool, n)
         self.goal_mode = next((m for m in _HARDNESS_ORDER if m in pool), "Easy")
 
+        self._validate_pool_fits()
+
     def _load_from_passthrough(self, passthrough: Dict[str, Any]) -> None:
         """Restore generate_early state from slot data."""
         slot_options = passthrough.get("options", {})
@@ -234,6 +397,12 @@ class BTD6World(World):
             self.multiworld.push_precollected(self.create_item(map_name))
         for monkey in self.starting_monkeys:
             self.multiworld.push_precollected(self.create_item(monkey))
+        if self.remaining_categories:
+            self.starting_category = next(
+                (c for c in BloonsItems.category_names if c not in self.remaining_categories), ""
+            )
+            if self.starting_category:
+                self.multiworld.push_precollected(self.create_item(self.starting_category))
         self.multiworld.push_precollected(self.create_item(self.starting_hero))
 
     @staticmethod
@@ -366,8 +535,6 @@ class BTD6World(World):
         if self.options.trap_percentage.value > 0 and filler_items > 0:
             trap_count = max(0, int(filler_items * (self.options.trap_percentage.value / 100)))
 
-        money_count = filler_items - trap_count
-
         # Distribute traps by weight across trap types
         weight_map = {
             name: max(0, self.options.trap_weights.value.get(name, 0))
@@ -377,8 +544,13 @@ class BTD6World(World):
         trap_weights = [weight_map[n] for n in trap_names]
         if not trap_names:
             trap_count = 0  # all weights zero — skip traps entirely
+
+        # Counted after the trap fallback above, otherwise those items are never
+        # created and the world ends up with fewer items than locations.
+        money_count = max(0, filler_items - trap_count)
+
         for _ in range(trap_count):
-            chosen = random.choices(trap_names, weights=trap_weights, k=1)[0]
+            chosen = self.random.choices(trap_names, weights=trap_weights, k=1)[0]
             self.multiworld.itempool.append(self.create_item(chosen))
         filler_cycle = [
             BloonsItems.MONKEY_BOOST_NAME,
@@ -589,6 +761,7 @@ class BTD6World(World):
             self.multiworld.regions.append(pop_tier_region)
             menu_region.connect(pop_tier_region)
             upgrade_sanity_on = bool(self.options.upgrade_sanity.value)
+            category_lock_on = bool(self.options.category_lock.value)
             for monkey in self.bloonsItemData.monkeyIDs:
                 if f"{monkey}-Tier3" not in self.bloonsMapData.locations:
                     continue
@@ -599,12 +772,18 @@ class BTD6World(World):
                 })
                 # Require the monkey to be unlocked before its tier locations are
                 # accessible — this prevents the solver from placing that monkey's
-                # own TUnlock item behind its own pop tier check (circular dependency).
-                for tier in ("Tier3", "Tier4", "Tier5"):
-                    add_rule(
-                        self.multiworld.get_location(f"{monkey}-{tier}", self.player),
-                        rule=lambda state, m=monkey: state.has(f"{m}-TUnlock", self.player),
-                    )
+                # own unlock item behind its own pop tier check (circular dependency).
+                # Under category lock the monkey arrives as its category item instead.
+                unlock_item = (
+                    BloonsItems.monkey_to_category.get(monkey, "")
+                    if category_lock_on else f"{monkey}-TUnlock"
+                )
+                if unlock_item:
+                    for tier in ("Tier3", "Tier4", "Tier5"):
+                        add_rule(
+                            self.multiworld.get_location(f"{monkey}-{tier}", self.player),
+                            rule=lambda state, it=unlock_item: state.has(it, self.player),
+                        )
                 # When upgrade_sanity is on, T4/T5 require at least one path item —
                 # without a path the player can't buy T4/T5 upgrades to accumulate pops.
                 if upgrade_sanity_on:
