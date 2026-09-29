@@ -38,8 +38,9 @@ class BTD6HeroUnlock(Item):
 class BTD6KnowledgeUnlock(Item):
     game: str = "Bloons TD6"
 
-    def __init__(self, name: str, code: Optional[int], player: int):
-        super().__init__(name, ItemClassification.progression, code, player)
+    def __init__(self, name: str, code: Optional[int], player: int,
+                 classification: ItemClassification = ItemClassification.progression):
+        super().__init__(name, classification, code, player)
 
 
 class BTD6ProgressiveKnowledge(Item):

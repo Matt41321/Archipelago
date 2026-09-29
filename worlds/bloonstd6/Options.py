@@ -1,6 +1,8 @@
 from Options import Choice, Toggle, Range, DeathLink, OptionCounter, OptionGroup, OptionSet, PerGameCommonOptions
 from dataclasses import dataclass
 
+from .Locations import BloonsLocations
+
 
 class StartingMaps(Range):
     """The number of maps that will be automatically unlocked at the start."""
@@ -204,15 +206,24 @@ class MaxLevel(Range):
     default = 40
 
 
-class ProgressiveKnowledge(Toggle):
+class KnowledgeMode(Choice):
     """
-    False/Off: Each individual Monkey Knowledge node is its own item in the multiworld pool.
-               Receiving one unlocks that specific node in the Knowledge Tree (original behaviour).
-    True/On:  All 134 individual knowledge items are replaced with 7 "Progressive Knowledge" items.
-              Each one you receive unlocks the next full layer of the Knowledge Tree across all branches.
+    How Monkey Knowledge is handled.
+
+    Unlock Checks: Each Monkey Knowledge node is its own item. Once received, click it in the
+                   Knowledge Tree to send a check. {Adds 134 checks}
+    Automatic:     Each Monkey Knowledge node is its own item but you don't have to activate them
+                   in the tree's and have no checks for activating them.
+    Progressive:   The 134 knowledge items are replaced with 7 "Progressive Knowledge" items.
+                   Each one activates the next full layer of the Knowledge Tree across all
+                   branches.
     """
 
-    display_name = "Progressive Knowledge"
+    display_name = "Knowledge Mode"
+    option_unlock_checks = 0
+    option_automatic = 1
+    option_progressive = 2
+    default = 0
 
 
 class PopTierChecks(Toggle):
@@ -418,24 +429,8 @@ class TrapLink(Toggle):
     display_name = "Trap Link"
 
 
-_ALL_MAP_DISPLAY_NAMES = frozenset([
-    "Monkey Meadow", "In The Loop", "Middle Of The Road", "Tinkerton", "Tree Stump",
-    "Town Centre", "One Two Tree", "Scrapyard", "The Cabin", "Resort", "Skates",
-    "Lotus Island", "Candy Falls", "Winter Park", "Carved", "Park Path", "Alpine Run",
-    "Frozen Over", "Cubism", "Four Circles", "Hedge", "End Of The Road", "Logs",
-    "Spa Pits", "Three Mines Around", "Luminous Cove", "Sulfur Springs", "Water Park",
-    "Polyphemus", "Covered Garden", "Quarry", "Quiet Street", "Bloonarius Prime",
-    "Balance", "Encrypted", "Bazaar", "Adora's Temple", "Spring Spring",
-    "Karts N Darts", "Moon Landing", "Haunted", "Downstream", "Firing Range",
-    "Cracked", "Streambed", "Chutes", "Rake", "Spice Islands", "Lost Crevasse",
-    "Ancient Portal", "Castle Revenge", "Dark Path", "Erosion", "Midnight Mansion",
-    "Sunken Columns", "X Factor", "Mesa", "Geared", "Spillway", "Cargo",
-    "Pat's Pond", "Peninsula", "High Finance", "Another Brick", "Off The Coast",
-    "Cornfield", "Underground", "Enchanted Glade", "Last Resort", "Party Parade",
-    "Sunset Gulch", "Mushroom Grotto", "Glacial Trail", "Dark Dungeons", "Sanctuary",
-    "Ravine", "Flooded Valley", "Infernal", "Bloody Puddles", "Workshop", "Quad",
-    "Dark Castle", "Muddy Puddles", "#ouch", "Tricky Tracks",
-])
+# Built from the map data so new maps are accepted by the black/whitelist automatically.
+_ALL_MAP_DISPLAY_NAMES = frozenset(BloonsLocations.display_name_to_id.keys())
 
 
 class MapBlacklist(OptionSet):
@@ -483,7 +478,7 @@ class BloonsTD6Options(PerGameCommonOptions):
     xp_curve: XPCurve
     static_req: StaticXPRequirement
     max_level: MaxLevel
-    progressive_knowledge: ProgressiveKnowledge
+    knowledge_mode: KnowledgeMode
     progressive_prices: ProgressivePrices
     progressive_starting_cash: ProgressiveStartingCash
     pop_tier_checks: PopTierChecks
@@ -522,7 +517,7 @@ btd6_option_groups = [
         StartingMonkeys,
     ]),
     OptionGroup("Progression Options", [
-        ProgressiveKnowledge,
+        KnowledgeMode,
         ProgressivePrices,
         ProgressiveStartingCash,
         MaxLevel,

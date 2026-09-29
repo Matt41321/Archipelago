@@ -1,6 +1,6 @@
 import logging
 import math
-from BaseClasses import Item, Region
+from BaseClasses import Item, ItemClassification, Region
 from Utils import visualize_regions
 from worlds.AutoWorld import WebWorld, World
 
@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Dict, List, Set, Type
 from Options import OptionError, PerGameCommonOptions
 from worlds.generic.Rules import add_rule, set_rule
 
-from .Options import BloonsTD6Options, btd6_option_groups
+from .Options import BloonsTD6Options, KnowledgeMode, btd6_option_groups
 from .Rules import set_map_rules, set_round_rule, max_reachable_round, has_economy, STARTING_DAMAGE_TOWERS
 from .Locations import BTD6Hero, BTD6Knowledge, BTD6Map, BTD6Medal, BloonsLocations
 from .Items import (
@@ -158,6 +158,15 @@ class BTD6World(World):
                 pass
         return rounds
 
+    @property
+    def knowledge_mode(self) -> int:
+        return self.options.knowledge_mode.value
+
+    def _knowledge_classification(self) -> ItemClassification:
+        if self.knowledge_mode == KnowledgeMode.option_unlock_checks:
+            return ItemClassification.progression
+        return ItemClassification.useful
+
     def _count_locations(self) -> int:
         """Number of locations create_regions will produce for the chosen options."""
         round_checks = self._round_check_rounds()
@@ -173,7 +182,7 @@ class BTD6World(World):
                 1 for monkey in self.bloonsItemData.monkeyIDs
                 if f"{monkey}-Tier3" in self.bloonsMapData.locations
             )
-        if not self.options.progressive_knowledge.value:
+        if self.knowledge_mode == KnowledgeMode.option_unlock_checks:
             total += len(Shared.knowledgeIDs)
         return total
 
@@ -194,7 +203,9 @@ class BTD6World(World):
             counts["progressive starting cash"] = self.options.progressive_starting_cash.value
         if self.options.upgrade_sanity.value:
             counts["upgrade paths"] = len(self.bloonsItemData.monkeyIDs) * len(Shared.pathNames)
-        counts["knowledge"] = 7 if self.options.progressive_knowledge.value else len(Shared.knowledgeIDs)
+        counts["knowledge"] = (
+            7 if self.knowledge_mode == KnowledgeMode.option_progressive else len(Shared.knowledgeIDs)
+        )
         return counts
 
     def _validate_pool_fits(self) -> None:
@@ -215,7 +226,7 @@ class BTD6World(World):
             f"only produce {locations} locations, leaving {items - locations} item(s) with nowhere "
             f"to go. Add locations (raise Total Map Count, Modes Per Map or Maximum Level, lower "
             f"Round Sanity for more round checks per map, or enable Pop Tier Checks), or shrink the "
-            f"item pool (lower Total Medals, turn on Progressive Knowledge, or turn off Upgrade Sanity)."
+            f"item pool (lower Total Medals, set Knowledge Mode to Progressive, or turn off Upgrade Sanity)."
         )
 
     def _apply_map_filters(self, maps: List[str]) -> List[str]:
@@ -456,7 +467,7 @@ class BTD6World(World):
         if name.endswith("-HUnlock") and name in self.bloonsItemData.items:
             return BTD6HeroUnlock(name, self.bloonsItemData.items[name], self.player)
         if name.endswith("-KUnlock") and name in self.bloonsItemData.items:
-            return BTD6KnowledgeUnlock(name, self.bloonsItemData.items[name], self.player)
+            return BTD6KnowledgeUnlock(name, self.bloonsItemData.items[name], self.player, self._knowledge_classification())
         if (name.endswith("-TopPath") or name.endswith("-MiddlePath") or name.endswith("-BottomPath")) and name in self.bloonsItemData.items:
             return BTD6PathUnlock(name, self.bloonsItemData.items[name], self.player)
 
@@ -469,7 +480,7 @@ class BTD6World(World):
         if hero:
             return BTD6HeroUnlock(f"{name}-HUnlock", hero, self.player)
         if knowledge:
-            return BTD6KnowledgeUnlock(f"{name}-KUnlock", knowledge, self.player)
+            return BTD6KnowledgeUnlock(f"{name}-KUnlock", knowledge, self.player, self._knowledge_classification())
         return BTD6MonkeyUnlock(f"{name}-TUnlock", monkey, self.player)
 
     def create_items(self) -> None:
@@ -515,13 +526,13 @@ class BTD6World(World):
                     self.multiworld.itempool.append(self.create_item(f"{monkey}-{path}"))
                     item_count += 1
 
-        if self.options.progressive_knowledge.value:
+        if self.knowledge_mode == KnowledgeMode.option_progressive:
             # Progressive mode: 7 items unlock knowledge layer by layer
             for _ in range(7):
                 self.multiworld.itempool.append(self.create_item(BloonsItems.PROGRESSIVE_KNOWLEDGE_NAME))
                 item_count += 1
         else:
-            # Original mode: one item per knowledge node
+            # Unlock Checks / Automatic: one item per knowledge node
             for knowledge in Shared.knowledgeIDs:
                 self.multiworld.itempool.append(self.create_item(knowledge))
                 item_count += 1
@@ -796,7 +807,7 @@ class BTD6World(World):
         # endregion
 
         # region Knowledge Locations
-        if not self.options.progressive_knowledge.value:
+        if self.knowledge_mode == KnowledgeMode.option_unlock_checks:
             knowledge_region = Region("Knowledge Tree", self.player, self.multiworld)
             self.multiworld.regions.append(knowledge_region)
             menu_region.connect(knowledge_region)
@@ -811,9 +822,8 @@ class BTD6World(World):
                     rule=lambda state, k=kname: state.has(k + "-KUnlock", self.player),
                 )
         else:
-            # Progressive mode: knowledge is applied automatically in-game when
-            # "Progressive Knowledge" items are received. No Tree locations exist —
-            # there's nothing to click or check.
+            # Automatic / Progressive: knowledge is applied in-game as soon as it's
+            # received. No Tree locations exist — there's nothing to click or check.
             pass
         # endregion
 
@@ -849,7 +859,8 @@ class BTD6World(World):
             "tier3PopRequirement": int(self.options.tier3_pop_requirement.value),
             "tier4PopRequirement": int(self.options.tier4_pop_requirement.value),
             "tier5PopRequirement": int(self.options.tier5_pop_requirement.value),
-            "progressiveKnowledge": bool(self.options.progressive_knowledge.value),
+            "knowledgeMode": int(self.knowledge_mode),
+            "progressiveKnowledge": self.knowledge_mode == KnowledgeMode.option_progressive,
             "roundSanity": int(self.options.round_sanity.value),
             "customRoundChecks": sorted(int(r) for r in self.options.custom_round_checks.value),
             "progressivePrices": bool(self.options.progressive_prices.value),
@@ -861,7 +872,7 @@ class BTD6World(World):
             "options": self.options.as_dict(
                 "goal", "total_medals", "medalreq", "category_lock",
                 "xp_curve", "static_req", "max_level",
-                "progressive_knowledge", "progressive_prices", "progressive_starting_cash",
+                "knowledge_mode", "progressive_prices", "progressive_starting_cash",
                 "pop_tier_checks", "tier3_pop_requirement",
                 "tier4_pop_requirement", "tier5_pop_requirement",
                 "upgrade_sanity", "round_sanity", "custom_round_checks",
